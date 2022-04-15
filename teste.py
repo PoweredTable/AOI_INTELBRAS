@@ -4,7 +4,7 @@ import keyboard
 import pyfirmata
 from pyfirmata import util
 
-arduino = pyfirmata.Arduino('COM5')
+arduino = pyfirmata.Arduino('COM1')
 it = util.Iterator(arduino)
 it.start()
 time.sleep(1)
@@ -12,6 +12,7 @@ time.sleep(1)
 status = 0
 can_change = True
 while 1:
+
     if keyboard.is_pressed('enter') and can_change:
         print('keyboard was pressed')
         print(status)

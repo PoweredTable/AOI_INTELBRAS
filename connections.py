@@ -1,23 +1,23 @@
 
+class ArduinoCon:
+    def __init__(self, debugging, parameters):
+        self.debugging = debugging
 
-def start_connections(console, debugging):
+        if not self.debugging:
+            print('_ Carregamento padrão, iniciando conexões externas _')
+            self._connection_verification()
 
-    class ArduinoCon:
-        def __init__(self, parameters):
-            self.debugging = debugging
+        else:
+            print('____ AOI debugging, conexões externas ignoradas ____')
 
-            if not self.debugging:
-                console.put('_ ___ _ _ AOI {} - iniciando conexões externas _ _ ____')
-                self._connection_verification()
+    def _connection_verification(self):
+        pass
 
-            else:
-                console.put('___ AOI {} - debugging, conexões externas ignoradas ___')
 
-        def _connection_verification(self):
-            pass
+class CamerasCon:
+    def __init__(self, debugging, parameters):
+        self.debugging = debugging
 
-    class CamerasCon:
-        def __init__(self, parameters):
-            self.debugging = debugging
 
-    return ArduinoCon('arduino'), CamerasCon('cameras')
+def start_connections(debugging):
+    return ArduinoCon(debugging,'arduino'), CamerasCon(debugging, 'cameras')

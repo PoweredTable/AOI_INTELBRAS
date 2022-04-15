@@ -6,6 +6,7 @@ import serial.serialutil
 from PyQt5 import QtCore, QtGui, QtWidgets
 from configparser import ConfigParser
 from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import Qt
 from pyfirmata import Arduino, util
 
 from PyQt5.QtWidgets import QMainWindow, QApplication, QMessageBox, QSizePolicy
@@ -23,25 +24,31 @@ def get_ini_configs():
     if len(config.sections()) == 0:
         config.add_section('GERAIS')
         print('_-_-_ Configurações iniciais da AOI -_-_-_')
-        not_done, nome, users = True, None, None
-        while not_done:
-            nome = input('\nDigite o nome da linha de produção: ').strip().upper()
 
-            admin = input('Digite seu nome de administrador: ').strip().upper()
-            admin_id = input('Passe seu crachá: ')
+        users = False if os.path.exists('settings/users.json') else None
 
-            users = {'users': [{'name': admin, 'id': admin_id, 'editor': True}]}
+        while 1:
+            calha = input('\nDigite o nome da linha de produção: ').strip().upper()
+
+            if users is None:
+                admin = input('Digite seu nome de administrador: ').strip().upper()
+                admin_id = int(input('Passe seu crachá: '))
+                users = {'users': [{'name': admin, 'id': str(admin_id), 'editor': True}]}
+
+            stop_secs = float(input('Digite o tempo de parada do pino: '))
 
             done = input('Digite 1 para confirmar as configurações: ')
-            not_done = False if done == '1' else True
 
-            if not_done is False:
-                if nome != '' and admin_id.isnumeric():
+            if done == '1':
+                if calha != '' and stop_secs <= 2.5:
                     break
                 else:
                     print('Configurações inválidas!')
 
-        config.set('GERAIS', 'NOME', nome)
+            print('Por favor, digite novamente as configurações!')
+
+        config.set('GERAIS', 'NOME', calha)
+        config.set('GERAIS', 'PARADA', str(stop_secs))
 
         if os.path.exists('settings') is False:
             os.mkdir('settings')
@@ -99,9 +106,6 @@ class MainWindow(QMainWindow):
         size_policy.setHorizontalStretch(1)
         self.start_program.setSizePolicy(size_policy)
         self.start_program.setFont(font)
-
-        self.start_program.setStyleSheet("background-color: rgb(64, 134, 32);\n"
-                                         "color: rgb(255, 255, 255);")
 
         self.placas_button = QtWidgets.QPushButton(self.central_widget)
         self.placas_button.setSizePolicy(size_policy)
@@ -182,7 +186,6 @@ class MainWindow(QMainWindow):
 
     def run_inspection(self):
         if self.program_started is False:
-
             debugging = self.debugging_button.isChecked()
             only_saving = self.only_save_button.isChecked()
 
@@ -221,6 +224,7 @@ class MainWindow(QMainWindow):
                 self.console_textEdit.append(self.console_queue.get().format(self.production_name))
                 if self.scrolling_button.isChecked():
                     self.console_textEdit.moveCursor(QtGui.QTextCursor.End)
+            time.sleep(0.3)
 
     def configs_verify(self):
         clicked = self.sender().objectName()
@@ -267,7 +271,7 @@ class MainWindow(QMainWindow):
         unset_settings = []
 
         for i, setting in enumerate(settings):
-            if os.path.exists(f'settings/{setting[0]}') is False:
+            if os.path.isfile(f'settings/{setting[0]}') is False:
                 unset_settings.append(setting[1])
                 setting[1].setStyleSheet("background-color: rgb(207, 217, 15)")
 
@@ -277,6 +281,10 @@ class MainWindow(QMainWindow):
             self.console_textEdit.append(txt)
             txt = '__ __  __  _ Por favor, realize as configurações necessárias ao lado _  __  __ __'
             self.console_textEdit.append(txt)
+
+        else:
+            self.start_program.setStyleSheet("background-color: rgb(64, 134, 32);\n"
+                                             "color: rgb(255, 255, 255);")
 
     def show_arduino(self):
         self.second_window = ArduinoWindow()
@@ -299,6 +307,7 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.succeeded_connection = None
         self.inputs = []
         self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
+        self.reader = None
 
         self.main_widget_layout = QtWidgets.QVBoxLayout(self)  # verticalLayout_2
         self.main_layout = QtWidgets.QVBoxLayout()  # main_layout
@@ -339,7 +348,7 @@ class ArduinoWindow(QtWidgets.QWidget):
 
         self.COMS_comboBox = QtWidgets.QComboBox(self.groupBox)
 
-        com_ports = ('COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7')
+        com_ports = ('COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7')
         self.COMS_comboBox.addItems(com_ports)
         self.COMS_comboBox.setFont(font)
         self.groupBox_layout.addWidget(self.COMS_comboBox, 0, 1, 1, 1)
@@ -412,22 +421,26 @@ class ArduinoWindow(QtWidgets.QWidget):
 
     def add_inputs(self):
         rows = len(self.inputs)
-        print(rows)
+
         if rows < 5:
+            print(rows)
             label = QtWidgets.QLabel(self.groupBox2)
-            label.setText('Tipo de entrada:')
+            label.setText('Nome referência:')
             self.groupBox2_layout.addWidget(label, rows, 0, 1, 1)
 
             input_type = QtWidgets.QComboBox(self.groupBox2)
-            input_type.addItems(('sensor', 'botão'))
+
+            input_type.addItems(('SEN1', 'SEN2', 'SEN3', 'BTN1', 'BTN2', 'BTN3'))
             self.groupBox2_layout.addWidget(input_type, rows, 1, 1, 1)
 
             input_port = QtWidgets.QComboBox(self.groupBox2)
-            inputs = ('A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7')
-            input_port.addItems(inputs)
+
+            for i in range(6):
+                input_port.addItem(f'A{i}', f'a:{i}:i')
             self.groupBox2_layout.addWidget(input_port, rows, 2, 1, 1)
 
             test_button = QtWidgets.QPushButton(self.groupBox2)
+            test_button.clicked.connect(lambda event, r=rows: self.reading_test(r))
             test_button.setText('Testar')
 
             self.groupBox2_layout.addWidget(test_button, rows, 3, 1, 1)
@@ -441,7 +454,6 @@ class ArduinoWindow(QtWidgets.QWidget):
                 self.addInput_button.setEnabled(False)
 
     def remove_inputs(self):
-
         self.addInput_button.setEnabled(True)
         for widget in self.inputs[-1]:
 
@@ -452,6 +464,62 @@ class ArduinoWindow(QtWidgets.QWidget):
 
         if len(self.inputs) == 0:
             self.remove_button.setEnabled(False)
+
+    def reading_test(self, input_row):
+        index = self.inputs[input_row][2].currentIndex()
+        port = self.inputs[input_row][2].itemData(index)
+        self.reader = InputReader(self.succeeded_connection, port)
+        self.reader.show()
+
+
+class InputReader(QtWidgets.QWidget):
+    def __init__(self, nano, port):
+        super(InputReader, self).__init__()
+        self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
+        window_icon = QIcon('icon_simnext.png')
+        self.setWindowIcon(window_icon)
+        self.setWindowTitle('Leitura de valores')
+        self.setFixedSize(271, 147)
+
+        self.main_widget_layout = QtWidgets.QGridLayout(self)
+        self.gridLayout = QtWidgets.QGridLayout()
+
+        self.pushButton = QtWidgets.QPushButton(self)
+        self.pushButton.setText('OK')
+        self.pushButton.clicked.connect(self.exit)
+        font = QtGui.QFont()
+        font.setPointSize(14)
+        self.pushButton.setFont(font)
+
+        self.gridLayout.addWidget(self.pushButton, 1, 0, 1, 1)
+
+        self.label = QtWidgets.QLabel(self)
+        font.setPointSize(28)
+        self.label.setFont(font)
+        self.label.setAlignment(Qt.AlignCenter)
+
+        self.gridLayout.addWidget(self.label, 0, 0, 1, 1)
+        self.main_widget_layout.addLayout(self.gridLayout, 0, 0, 1, 1)
+
+        nano.taken['analog'] = {x: False for x in nano.taken['analog']}
+
+        self.keep_reading = True
+        self.pin = nano.get_pin(port)
+        self.running = Thread(target=self.run)
+        self.running.start()
+
+    def run(self):
+        while self.keep_reading:
+            self.label.setText(str(self.pin.read()))
+            time.sleep(0.05)
+
+    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        self.exit()
+
+    def exit(self):
+        self.keep_reading = False
+        self.running.join()
+        self.close()
 
 
 if __name__ == "__main__":
