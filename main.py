@@ -72,11 +72,11 @@ class MainWindow(QMainWindow):
         self.program_started = False
         self.console_queue = SimpleQueue()
         self.setWindowIcon(QIcon('icon_simnext.png'))
-        self.production_name = get_ini_configs()
+        self.calha_nome = get_ini_configs()
 
         self.second_window = None
 
-        self.setWindowTitle(f'AOI GUI {self.production_name}')
+        self.setWindowTitle(f'AOI GUI {self.calha_nome}')
 
         self.central_widget = QtWidgets.QWidget()
         self.gridLayout_2 = QtWidgets.QGridLayout(self.central_widget)
@@ -221,7 +221,7 @@ class MainWindow(QMainWindow):
         while self.program_started:
             if self.console_queue.empty() is False:
 
-                self.console_textEdit.append(self.console_queue.get().format(self.production_name))
+                self.console_textEdit.append(self.console_queue.get().format(self.calha_nome))
                 if self.scrolling_button.isChecked():
                     self.console_textEdit.moveCursor(QtGui.QTextCursor.End)
             time.sleep(0.3)
@@ -259,7 +259,7 @@ class MainWindow(QMainWindow):
                 let_enabled.setEnabled(True)
 
     def clear_text_edit(self):
-        msg_box = MsgBox(f'AOI {self.production_name}', 'Deseja apagar o console?',
+        msg_box = MsgBox(f'AOI {self.calha_nome}', 'Deseja apagar o console?',
                          (QMessageBox.Ok | QMessageBox.Cancel), QMessageBox.Information)
         return_value = msg_box.exec_()
 
@@ -277,7 +277,7 @@ class MainWindow(QMainWindow):
 
         if len(unset_settings) != 0:
             self.turn_buttons(False, unset_settings)
-            txt = '_' * 10 + f'_ AOI {self.production_name} - arquivos de configuração inexistentes _' + '_' * 10 + '\n'
+            txt = '_' * 10 + f'_ AOI {self.calha_nome} - arquivos de configuração inexistentes _' + '_' * 10 + '\n'
             self.console_textEdit.append(txt)
             txt = '__ __  __  _ Por favor, realize as configurações necessárias ao lado _  __  __ __'
             self.console_textEdit.append(txt)
@@ -324,6 +324,22 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.groupBox.setTitle('Configurações do Arduino')
         self.groupBox_layout = QtWidgets.QGridLayout(self.groupBox)
 
+        self.porta_label = QtWidgets.QLabel(self.groupBox)
+        self.porta_label.setText('Porta do Arduino:')
+        self.porta_label.setFont(font)
+        self.groupBox_layout.addWidget(self.porta_label, 0, 0, 1, 1)
+
+        self.COMS_comboBox = QtWidgets.QComboBox(self.groupBox)
+        com_ports = ('COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7')
+        self.COMS_comboBox.addItems(com_ports)
+        self.COMS_comboBox.setFont(font)
+        self.groupBox_layout.addWidget(self.COMS_comboBox, 0, 1, 1, 1)
+
+        self.connect_button = QtWidgets.QPushButton(self.groupBox)
+        self.connect_button.setText('Conectar')
+        self.connect_button.setFont(font)
+        self.groupBox_layout.addWidget(self.connect_button, 0, 2, 1, 1)
+
         self.addInput_button = QtWidgets.QPushButton(self.groupBox)
         self.addInput_button.setText('Adicionar entrada')
         self.addInput_button.setEnabled(False)
@@ -336,32 +352,11 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.remove_button.setFont(font)
         self.groupBox_layout.addWidget(self.remove_button, 1, 2, 1, 1)
 
-        self.porta_label = QtWidgets.QLabel(self.groupBox)
-        self.porta_label.setText('Porta do Arduino:')
-        self.porta_label.setFont(font)
-        self.groupBox_layout.addWidget(self.porta_label, 0, 0, 1, 1)
-
-        self.connect_button = QtWidgets.QPushButton(self.groupBox)
-        self.connect_button.setText('Conectar')
-        self.connect_button.setFont(font)
-        self.groupBox_layout.addWidget(self.connect_button, 0, 2, 1, 1)
-
-        self.COMS_comboBox = QtWidgets.QComboBox(self.groupBox)
-
-        com_ports = ('COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7')
-        self.COMS_comboBox.addItems(com_ports)
-        self.COMS_comboBox.setFont(font)
-        self.groupBox_layout.addWidget(self.COMS_comboBox, 0, 1, 1, 1)
-
         self.groupBox2 = QtWidgets.QGroupBox(self.groupBox)
         self.groupBox2.setTitle('Entradas adicionadas')
         self.groupBox2.setFont(font)
         self.groupBox2.setEnabled(False)
         self.groupBox2_layout = QtWidgets.QGridLayout(self.groupBox2)
-
-        #self.separator = QtWidgets.QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
-        #self.groupBox2_layout.addItem(self.separator, 0, 0, 1, 1)
-
         self.groupBox_layout.addWidget(self.groupBox2, 2, 0, 1, 3)
 
         self.outputs_button = QtWidgets.QPushButton(self.groupBox)
@@ -376,7 +371,6 @@ class ArduinoWindow(QtWidgets.QWidget):
 
         self.main_layout.addWidget(self.groupBox)
         self.main_widget_layout.addLayout(self.main_layout)
-
         self._clicks()
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
@@ -423,18 +417,15 @@ class ArduinoWindow(QtWidgets.QWidget):
         rows = len(self.inputs)
 
         if rows < 5:
-            print(rows)
             label = QtWidgets.QLabel(self.groupBox2)
             label.setText('Nome referência:')
             self.groupBox2_layout.addWidget(label, rows, 0, 1, 1)
 
             input_type = QtWidgets.QComboBox(self.groupBox2)
-
             input_type.addItems(('SEN1', 'SEN2', 'SEN3', 'BTN1', 'BTN2', 'BTN3'))
             self.groupBox2_layout.addWidget(input_type, rows, 1, 1, 1)
 
             input_port = QtWidgets.QComboBox(self.groupBox2)
-
             for i in range(6):
                 input_port.addItem(f'A{i}', f'a:{i}:i')
             self.groupBox2_layout.addWidget(input_port, rows, 2, 1, 1)
@@ -442,21 +433,18 @@ class ArduinoWindow(QtWidgets.QWidget):
             test_button = QtWidgets.QPushButton(self.groupBox2)
             test_button.clicked.connect(lambda event, r=rows: self.reading_test(r))
             test_button.setText('Testar')
-
             self.groupBox2_layout.addWidget(test_button, rows, 3, 1, 1)
 
             new_input_row = (label, input_type, input_port, test_button)
             self.inputs.append(new_input_row)
 
             self.remove_button.setEnabled(True)
-
             if rows > 3:
                 self.addInput_button.setEnabled(False)
 
     def remove_inputs(self):
         self.addInput_button.setEnabled(True)
         for widget in self.inputs[-1]:
-
             self.groupBox2_layout.removeWidget(widget)
             widget.deleteLater()
 
@@ -468,6 +456,7 @@ class ArduinoWindow(QtWidgets.QWidget):
     def reading_test(self, input_row):
         index = self.inputs[input_row][2].currentIndex()
         port = self.inputs[input_row][2].itemData(index)
+
         self.reader = InputReader(self.succeeded_connection, port)
         self.reader.show()
 
@@ -484,21 +473,21 @@ class InputReader(QtWidgets.QWidget):
         self.main_widget_layout = QtWidgets.QGridLayout(self)
         self.gridLayout = QtWidgets.QGridLayout()
 
+        font = QtGui.QFont()
+        font.setPointSize(14)
+
         self.pushButton = QtWidgets.QPushButton(self)
         self.pushButton.setText('OK')
         self.pushButton.clicked.connect(self.exit)
-        font = QtGui.QFont()
-        font.setPointSize(14)
         self.pushButton.setFont(font)
-
         self.gridLayout.addWidget(self.pushButton, 1, 0, 1, 1)
 
         self.label = QtWidgets.QLabel(self)
         font.setPointSize(28)
         self.label.setFont(font)
         self.label.setAlignment(Qt.AlignCenter)
-
         self.gridLayout.addWidget(self.label, 0, 0, 1, 1)
+
         self.main_widget_layout.addLayout(self.gridLayout, 0, 0, 1, 1)
 
         nano.taken['analog'] = {x: False for x in nano.taken['analog']}

@@ -20,4 +20,4 @@ class CamerasCon:
 
 
 def start_connections(debugging):
-    return ArduinoCon(debugging,'arduino'), CamerasCon(debugging, 'cameras')
+    return ArduinoCon(debugging, 'arduino'), CamerasCon(debugging, 'cameras')
