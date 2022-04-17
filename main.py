@@ -9,7 +9,7 @@ from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
 from pyfirmata import Arduino, util
 
-from PyQt5.QtWidgets import QMainWindow, QApplication, QMessageBox, QSizePolicy
+from PyQt5.QtWidgets import QMainWindow, QApplication, QMessageBox
 
 from core import inspection
 from multiprocessing import Process, SimpleQueue
@@ -305,7 +305,7 @@ class ArduinoWindow(QtWidgets.QWidget):
     def __init__(self):
         super(ArduinoWindow, self).__init__()
         self.succeeded_connection = None
-        self.inputs = []
+        self.inputs, self.outputs = [], []
         self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
         self.reader = None
 
@@ -340,36 +340,86 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.connect_button.setFont(font)
         self.groupBox_layout.addWidget(self.connect_button, 0, 2, 1, 1)
 
-        self.addInput_button = QtWidgets.QPushButton(self.groupBox)
-        self.addInput_button.setText('Adicionar entrada')
-        self.addInput_button.setEnabled(False)
-        self.addInput_button.setFont(font)
-        self.groupBox_layout.addWidget(self.addInput_button, 1, 0, 1, 2)
+        self.inp_out_tabWidget = QtWidgets.QTabWidget(self.groupBox)
+        self.inp_out_tabWidget.setEnabled(False)
+        self.inp_out_tabWidget.setFont(font)
+        ###
+        self.inp_tab = QtWidgets.QWidget()
+        self.inp_tab_layout = QtWidgets.QGridLayout(self.inp_tab)  # first layout
 
-        self.remove_button = QtWidgets.QPushButton(self.groupBox)
-        self.remove_button.setText('Remover')
-        self.remove_button.setEnabled(False)
-        self.remove_button.setFont(font)
-        self.groupBox_layout.addWidget(self.remove_button, 1, 2, 1, 1)
+        self.inp_tab_frame = QtWidgets.QFrame()
+        self.inp_tab_frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        self.inp_tab_frame_layout = QtWidgets.QGridLayout(self.inp_tab_frame)
 
-        self.groupBox2 = QtWidgets.QGroupBox(self.groupBox)
-        self.groupBox2.setTitle('Entradas adicionadas')
-        self.groupBox2.setFont(font)
-        self.groupBox2.setEnabled(False)
-        self.groupBox2_layout = QtWidgets.QGridLayout(self.groupBox2)
-        self.groupBox_layout.addWidget(self.groupBox2, 2, 0, 1, 3)
+        self.inputs_frame_grid = QtWidgets.QGridLayout()
+        self.inp_tab_frame_layout.addLayout(self.inputs_frame_grid, 0, 0, 1, 1)
+        self.inp_tab_layout.addWidget(self.inp_tab_frame, 1, 0, 1, 2)
 
-        self.outputs_button = QtWidgets.QPushButton(self.groupBox)
-        self.outputs_button.setText('Saídas...')
-        self.outputs_button.setFont(font)
-        self.groupBox_layout.addWidget(self.outputs_button, 3, 0, 1, 1)
+        self.add_pushButton = QtWidgets.QPushButton(self.inp_tab)
+        self.add_pushButton.setText('Adicionar')
+        self.inp_tab_layout.addWidget(self.add_pushButton, 0, 0, 1, 1)
+
+        self.remove_pushButton = QtWidgets.QPushButton(self.inp_tab)
+        self.remove_pushButton.setText('Remover')
+        self.remove_pushButton.setEnabled(False)
+        self.inp_tab_layout.addWidget(self.remove_pushButton, 0, 1, 1, 1)
+
+        self.inp_out_tabWidget.addTab(self.inp_tab, 'Entradas')
+        ###
+
+        self.out_tab = QtWidgets.QWidget()
+        self.out_tab_layout = QtWidgets.QGridLayout(self.out_tab)
+
+        outputs = ('Controle esteira', 'Pino pneumático', 'Controle luzes', 'Alarme esteira', 'Alarme máquina')
+        digitalis = [f'digital {x}' for x in range(2, 13)]
+        r, c, rs, cs = 0, 0, 1, 1
+        for output in outputs:
+            label = QtWidgets.QLabel(self.out_tab)
+            label.setText(output + ':')
+            self.out_tab_layout.addWidget(label, r, c, rs, cs)
+
+            comboBox = QtWidgets.QComboBox(self.out_tab)
+
+            self.out_tab_layout.addWidget(comboBox, r, c+1, rs, cs)
+
+            pushButton = QtWidgets.QPushButton(self.out_tab)
+            pushButton.clicked.connect(lambda click, index=r: self.digital_test(index))
+            if r > 2:
+                spinBox = QtWidgets.QSpinBox(self.out_tab)
+                spinBox.setMinimum(1)
+                spinBox.setMaximum(18)
+                self.out_tab_layout.addWidget(spinBox, r, c+2, rs, cs)
+
+                self.out_tab_layout.addWidget(pushButton, r, c+3, rs, cs)
+                self.outputs.append((comboBox, spinBox))
+
+                pushButton.setText('tocar')
+
+                if r > 3:
+                    comboBox.addItem('desativado', False)
+                    comboBox.currentIndexChanged.connect(lambda change, pButton=pushButton: self._alarm_switch(pButton))
+                    spinBox.setEnabled(False)
+                    pushButton.setEnabled(False)
+            else:
+                self.out_tab_layout.addWidget(pushButton, r, c+2, rs, cs+1)
+                self.outputs.append((comboBox, pushButton))
+                pushButton.setText('ativar')
+
+            for i, digital in enumerate(digitalis):
+                comboBox.addItem(digital, i+2)
+            r += 1
+
+        self.inp_out_tabWidget.addTab(self.out_tab, 'Saídas')
 
         self.confirm_button = QtWidgets.QPushButton(self.groupBox)
+        self.confirm_button.setEnabled(False)
         self.confirm_button.setText('Validar configurações')
         self.confirm_button.setFont(font)
-        self.groupBox_layout.addWidget(self.confirm_button, 3, 1, 1, 2)
+        self.groupBox_layout.addWidget(self.confirm_button, 2, 0, 1, 3)
 
+        self.groupBox_layout.addWidget(self.inp_out_tabWidget, 1, 0, 1, 3)
         self.main_layout.addWidget(self.groupBox)
+
         self.main_widget_layout.addLayout(self.main_layout)
         self._clicks()
 
@@ -379,8 +429,9 @@ class ArduinoWindow(QtWidgets.QWidget):
 
     def _clicks(self):
         self.connect_button.clicked.connect(self._connection_test)
-        self.addInput_button.clicked.connect(self.add_inputs)
-        self.remove_button.clicked.connect(self.remove_inputs)
+        self.add_pushButton.clicked.connect(self.add_inputs)
+        self.remove_pushButton.clicked.connect(self.remove_inputs)
+        self.confirm_button.clicked.connect(self.connections_verify)
 
     def _connection_test(self):
         if self.succeeded_connection is None:
@@ -399,59 +450,73 @@ class ArduinoWindow(QtWidgets.QWidget):
                 self.succeeded_connection = arduino
                 self.connect_button.setText('Desconectar')
                 self.COMS_comboBox.setEnabled(False)
-                self.addInput_button.setEnabled(True)
-                self.groupBox2.setEnabled(True)
+                self.inp_out_tabWidget.setEnabled(True)
+                self.confirm_button.setEnabled(True)
 
                 if len(self.inputs) != 0:
-                    self.remove_button.setEnabled(True)
+                    self.remove_pushButton.setEnabled(True)
         else:
             self.succeeded_connection.exit()
             self.succeeded_connection = None
             self.connect_button.setText('Conectar')
+            self.inp_out_tabWidget.setEnabled(False)
             self.COMS_comboBox.setEnabled(True)
-            self.addInput_button.setEnabled(False)
-            self.groupBox2.setEnabled(False)
-            self.remove_button.setEnabled(False)
+            self.remove_pushButton.setEnabled(False)
+
+    def _alarm_switch(self, pushButton):
+        index = self.outputs[4][0].currentIndex()
+        action = True if index != 0 else False
+
+        pushButton.setEnabled(action)
+        self.outputs[4][1].setEnabled(action)
+
+    def _combos_change(self, comboBox):
+        if comboBox.styleSheet() != '':
+            comboBox.setStyleSheet("")
+
+        print(type(comboBox.styleSheet()))
+
 
     def add_inputs(self):
         rows = len(self.inputs)
 
         if rows < 5:
-            label = QtWidgets.QLabel(self.groupBox2)
-            label.setText('Nome referência:')
-            self.groupBox2_layout.addWidget(label, rows, 0, 1, 1)
+            label = QtWidgets.QLabel(self.inp_tab_frame)
+            label.setText('Referência:')
+            self.inp_tab_frame_layout.addWidget(label, rows, 0, 1, 1)
 
-            input_type = QtWidgets.QComboBox(self.groupBox2)
+            input_type = QtWidgets.QComboBox(self.inp_tab_frame)
             input_type.addItems(('SEN1', 'SEN2', 'SEN3', 'BTN1', 'BTN2', 'BTN3'))
-            self.groupBox2_layout.addWidget(input_type, rows, 1, 1, 1)
+            input_type.activated.connect(lambda change, inpType=input_type: self._combos_change(inpType))
+            self.inp_tab_frame_layout.addWidget(input_type, rows, 1, 1, 1)
 
-            input_port = QtWidgets.QComboBox(self.groupBox2)
+            input_port = QtWidgets.QComboBox(self.inp_tab_frame)
             for i in range(6):
                 input_port.addItem(f'A{i}', f'a:{i}:i')
-            self.groupBox2_layout.addWidget(input_port, rows, 2, 1, 1)
+            input_port.activated.connect(lambda change, inpPort=input_port: self._combos_change(inpPort))
+            self.inp_tab_frame_layout.addWidget(input_port, rows, 2, 1, 1)
 
-            test_button = QtWidgets.QPushButton(self.groupBox2)
-            test_button.clicked.connect(lambda event, r=rows: self.reading_test(r))
+            test_button = QtWidgets.QPushButton(self.inp_tab_frame)
+            test_button.clicked.connect(lambda click, r=rows: self.reading_test(r))
             test_button.setText('Testar')
-            self.groupBox2_layout.addWidget(test_button, rows, 3, 1, 1)
+            self.inp_tab_frame_layout.addWidget(test_button, rows, 3, 1, 1)
 
             new_input_row = (label, input_type, input_port, test_button)
             self.inputs.append(new_input_row)
 
-            self.remove_button.setEnabled(True)
+            self.remove_pushButton.setEnabled(True)
             if rows > 3:
-                self.addInput_button.setEnabled(False)
+                self.add_pushButton.setEnabled(False)
 
     def remove_inputs(self):
-        self.addInput_button.setEnabled(True)
+        self.add_pushButton.setEnabled(True)
         for widget in self.inputs[-1]:
-            self.groupBox2_layout.removeWidget(widget)
+            self.inp_tab_frame_layout.removeWidget(widget)
             widget.deleteLater()
 
         self.inputs.pop(-1)
-
         if len(self.inputs) == 0:
-            self.remove_button.setEnabled(False)
+            self.remove_pushButton.setEnabled(False)
 
     def reading_test(self, input_row):
         index = self.inputs[input_row][2].currentIndex()
@@ -459,6 +524,96 @@ class ArduinoWindow(QtWidgets.QWidget):
 
         self.reader = InputReader(self.succeeded_connection, port)
         self.reader.show()
+
+    def digital_test(self, output_row):
+        comboBox = self.outputs[output_row][0]
+        digital = comboBox.itemData(comboBox.currentIndex())
+
+        if output_row <= 2:
+            pushButton = self.outputs[output_row][1]
+            status = 1 if pushButton.text() == 'ativar' else 0
+            text = 'desativar' if status == 1 else 'ativar'
+            pushButton.setText(text)
+            self.succeeded_connection.digital[digital].write(status)
+
+        else:
+            bipes = self.outputs[output_row][1].value()
+            for _ in range(bipes):
+                self.succeeded_connection.digital[digital].write(1)
+                time.sleep(0.11)
+                self.succeeded_connection.digital[digital].write(0)
+                time.sleep(0.07)
+
+    def connections_verify(self):
+        valid = Validation(self.succeeded_connection, self.inputs, self.outputs).check()
+
+        if valid:
+            pass
+        else:
+            pass
+
+
+class Validation:
+    def __init__(self, nano, inputs, outputs):
+        self._inputs, self._outputs = inputs, outputs
+        self.nano = nano
+        self.c_thread = None
+
+        self.valid = True
+
+    def check(self):
+        self.c_thread = Thread(target=self._checking)
+        self.c_thread.start()
+        self.c_thread.join()
+
+        return self.valid
+
+    def _checking(self):
+        inputs = {'input_type': {'seen': set()}, 'input_port': {'seen': set()}}
+        digital_ports = set()
+        json_dict = {'port': self.nano.name, 'inputs': {}, 'outputs': {}}
+
+        for _, input_type, input_port, _ in self._inputs:
+            type_txt, key = input_type.currentText(), 'input_type'
+            input_type_ok = True
+            if type_txt not in inputs[key]['seen']:
+                inputs[key]['seen'].add(type_txt)
+            else:
+                input_type.setStyleSheet("color: rgb(85, 0, 255);")
+                input_type_ok, self.valid = False, False
+
+            port_txt, key = input_port.itemData(input_port.currentIndex()), 'input_port'
+            input_port_ok = True
+            if port_txt not in inputs[key]['seen']:
+                inputs[key]['seen'].add(port_txt)
+            else:
+                input_port.setStyleSheet("color: rgb(85, 0, 255);")
+                input_port_ok, self.valid = False, False
+
+            if input_type_ok and input_port_ok:
+                returning_values = self._reading_test(port_txt)
+                if not returning_values:
+                    input_port.setStyleSheet("color: rgb(255, 0, 0);")
+                    self.valid = False
+
+                else:
+                    json_dict['inputs'][type_txt] = port_txt
+
+        for digital_port, _ in self._outputs:
+            txt = digital_port.currentText()
+            if txt not in digital_ports:
+                digital_ports.add(txt)
+            else:
+                digital_port.setEnabled(False)
+                self.valid = False
+
+    def _reading_test(self, input_port):
+        self.nano.taken['analog'] = {x: False for x in self.nano.taken['analog']}
+        pin, value = self.nano.get_pin(input_port), None
+        for _ in range(10):
+            value = pin.read()
+            time.sleep(0.125)
+        return True if value is not None else False
 
 
 class InputReader(QtWidgets.QWidget):
