@@ -190,7 +190,6 @@ class MainWindow(QMainWindow):
             only_saving = self.only_save_button.isChecked()
 
             self.program_started = True
-            print('color to 255, 134, 32')
             self.start_program.setStyleSheet("background-color: rgb(255, 134, 32);\n"
                                              "color: rgb(255, 255, 255);")
             self.start_program.setText('PARAR')
@@ -212,8 +211,6 @@ class MainWindow(QMainWindow):
             self.core_process.join()
             self.start_program.setStyleSheet("background-color: rgb(64, 134, 32);\n"
                                              "color: rgb(255, 255, 255);")
-
-            print('color has changed to (64, 134, 32)')
             self.start_program.setText('INICIAR')
             self.turn_buttons(True)
 
@@ -461,6 +458,7 @@ class ArduinoWindow(QtWidgets.QWidget):
             self.connect_button.setText('Conectar')
             self.inp_out_tabWidget.setEnabled(False)
             self.COMS_comboBox.setEnabled(True)
+            #self.COMS_comboBox.sty
             self.remove_pushButton.setEnabled(False)
 
     def _alarm_switch(self, pushButton):
@@ -469,13 +467,6 @@ class ArduinoWindow(QtWidgets.QWidget):
 
         pushButton.setEnabled(action)
         self.outputs[4][1].setEnabled(action)
-
-    def _combos_change(self, comboBox):
-        if comboBox.styleSheet() != '':
-            comboBox.setStyleSheet("")
-
-        print(type(comboBox.styleSheet()))
-
 
     def add_inputs(self):
         rows = len(self.inputs)
@@ -487,13 +478,11 @@ class ArduinoWindow(QtWidgets.QWidget):
 
             input_type = QtWidgets.QComboBox(self.inp_tab_frame)
             input_type.addItems(('SEN1', 'SEN2', 'SEN3', 'BTN1', 'BTN2', 'BTN3'))
-            input_type.activated.connect(lambda change, inpType=input_type: self._combos_change(inpType))
             self.inp_tab_frame_layout.addWidget(input_type, rows, 1, 1, 1)
 
             input_port = QtWidgets.QComboBox(self.inp_tab_frame)
             for i in range(6):
                 input_port.addItem(f'A{i}', f'a:{i}:i')
-            input_port.activated.connect(lambda change, inpPort=input_port: self._combos_change(inpPort))
             self.inp_tab_frame_layout.addWidget(input_port, rows, 2, 1, 1)
 
             test_button = QtWidgets.QPushButton(self.inp_tab_frame)
@@ -545,33 +534,52 @@ class ArduinoWindow(QtWidgets.QWidget):
                 time.sleep(0.07)
 
     def connections_verify(self):
-        valid = Validation(self.succeeded_connection, self.inputs, self.outputs).check()
+        advises, json_dict = Validation(self.succeeded_connection, self.inputs, self.outputs).check()
 
-        if valid:
-            pass
+        if advises['any'] is False:
+            print('no errors have been pointed out, generating JSON file...')
+            print(json_dict)
         else:
-            pass
+            inp_warning, inp_critical = advises['inputs']['warning'], advises['inputs']['critical']
+            digital_warning = advises['digital_warning']
+            if inp_warning != 0:
+                adv_one = 'Referênicas ou portas analógicas duplicadas' if inp_warning > 1 else \
+                          'Referência ou porta analógica duplicada'
+
+                MsgBox('Erro de validação', adv_one + ', verifique as entradas inseridas e tente novamente!',
+                       QMessageBox.Ok, QMessageBox.Warning).exec_()
+
+            if digital_warning != 0:
+                adv_three = 'Portas digitais duplicadas' if digital_warning > 1 else 'Porta digital duplicada'
+                MsgBox('Erro de validação', adv_three +', verifique as saídas inseridas e tente novamente!',
+                       QMessageBox.Ok, QMessageBox.Warning).exec_()
+
+            if len(inp_critical) != 0:
+                adv_two = f'Portas analógicas {inp_critical} não retornam valores' if len(inp_critical) > 1 else \
+                          f'Porta analógica {inp_critical[0]} não retorna valores'
+                MsgBox('Erro de validação', adv_two + ', verifique as conexões do arduino e tente novamente!',
+                       QMessageBox.Ok, QMessageBox.Critical).exec_()
 
 
 class Validation:
     def __init__(self, nano, inputs, outputs):
-        self._inputs, self._outputs = inputs, outputs
+        self._inputs, self._outputs = inputs, [output[0] for output in outputs]
         self.nano = nano
         self.c_thread = None
 
-        self.valid = True
+        self.json_dict = {'port': self.nano.name, 'inputs': {}, 'outputs': {}}
+        self.advises = {'any': False, 'inputs': {'warning': 0, 'critical': []}, 'digital_warning': 0}
 
     def check(self):
         self.c_thread = Thread(target=self._checking)
         self.c_thread.start()
         self.c_thread.join()
 
-        return self.valid
+        return self.advises, self.json_dict
 
     def _checking(self):
         inputs = {'input_type': {'seen': set()}, 'input_port': {'seen': set()}}
         digital_ports = set()
-        json_dict = {'port': self.nano.name, 'inputs': {}, 'outputs': {}}
 
         for _, input_type, input_port, _ in self._inputs:
             type_txt, key = input_type.currentText(), 'input_type'
@@ -579,34 +587,41 @@ class Validation:
             if type_txt not in inputs[key]['seen']:
                 inputs[key]['seen'].add(type_txt)
             else:
-                input_type.setStyleSheet("color: rgb(85, 0, 255);")
-                input_type_ok, self.valid = False, False
+                input_type_ok = False
+                self.advises['any'] = True
+                self.advises['inputs']['warning'] += 1
 
             port_txt, key = input_port.itemData(input_port.currentIndex()), 'input_port'
             input_port_ok = True
             if port_txt not in inputs[key]['seen']:
                 inputs[key]['seen'].add(port_txt)
             else:
-                input_port.setStyleSheet("color: rgb(85, 0, 255);")
-                input_port_ok, self.valid = False, False
+                input_port_ok = False
+                self.advises['any'] = True
+                self.advises['inputs']['warning'] += 1
 
             if input_type_ok and input_port_ok:
                 returning_values = self._reading_test(port_txt)
                 if not returning_values:
-                    input_port.setStyleSheet("color: rgb(255, 0, 0);")
-                    self.valid = False
+                    self.advises['any'] = True
+                    self.advises['inputs']['critical'].append(input_port.currentText())
 
                 else:
-                    json_dict['inputs'][type_txt] = port_txt
+                    self.json_dict['inputs'][type_txt] = port_txt
 
-        for digital_port, _ in self._outputs:
-            txt = digital_port.currentText()
-            if txt not in digital_ports:
-                digital_ports.add(txt)
+        digital_references = ('CTR_EST', 'PIN_PNE', 'CTR_LUZ', 'ALR_EST', 'ALR_MQN')
+        for digital_port, reference in zip(self._outputs, digital_references):
+            port_txt = digital_port.currentText()
+            if port_txt not in digital_ports:
+                digital_ports.add(port_txt)
             else:
-                digital_port.setEnabled(False)
-                self.valid = False
+                self.advises['any'] = True
+                self.advises['digital_warning'] += 1
 
+            if self.advises['any'] is not True:
+                self.json_dict['outputs'][reference] = port_txt
+
+#CTR_EST, PIN_PNE, CTR_LUZ, ALR_EST, ALR_MQN
     def _reading_test(self, input_port):
         self.nano.taken['analog'] = {x: False for x in self.nano.taken['analog']}
         pin, value = self.nano.get_pin(input_port), None
