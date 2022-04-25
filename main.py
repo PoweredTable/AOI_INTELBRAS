@@ -398,18 +398,18 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.central_layout.addLayout(self.main_layout)
         self.assing_functions()
 
+    def assing_functions(self):
+        self.connect_pushButton.clicked.connect(self._connection_test)
+        self.add_pushButton.clicked.connect(self.add_inputs)
+        self.remove_pushButton.clicked.connect(self.remove_inputs)
+        self.confirm_button.clicked.connect(self.connections_verify)
+
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         for reader in list(self.readers.values()):
             reader.close()
 
         if self.succeeded_connection is not None:
             self.succeeded_connection.exit()
-
-    def assing_functions(self):
-        self.connect_pushButton.clicked.connect(self._connection_test)
-        self.add_pushButton.clicked.connect(self.add_inputs)
-        self.remove_pushButton.clicked.connect(self.remove_inputs)
-        self.confirm_button.clicked.connect(self.connections_verify)
 
     def _connection_test(self):
         if self.succeeded_connection is None:
@@ -506,14 +506,14 @@ class ArduinoWindow(QtWidgets.QWidget):
             self.connect_pushButton.setEnabled(True)
 
     def digital_test(self, output_row):
-        comboBox = self.outputs[output_row][0]
-        digital = comboBox.itemData(comboBox.currentIndex())
+        combo_box = self.outputs[output_row][0]
+        digital = combo_box.itemData(combo_box.currentIndex())
 
         if output_row <= 2:
-            pushButton = self.outputs[output_row][1]
-            status = 1 if pushButton.text() == 'ativar' else 0
+            push_button = self.outputs[output_row][1]
+            status = 1 if push_button.text() == 'ativar' else 0
             text = 'desativar' if status == 1 else 'ativar'
-            pushButton.setText(text)
+            push_button.setText(text)
             self.succeeded_connection.digital[digital].write(status)
 
         else:
@@ -528,11 +528,10 @@ class ArduinoWindow(QtWidgets.QWidget):
         advises, json_dict = Validation(self.succeeded_connection, self.inputs, self.outputs).check()
 
         if advises['any'] is False:
-            print('no errors have been pointed out, generating JSON file...')
             with open('settings/arduino.json', 'w') as f:
                 f.write(json.dumps(json_dict, indent=3))
 
-            MsgBox('Arduino', 'Configurações salvas, para aplicá-las é necessário reinciar, reiniciar agora?',
+            MsgBox('Arduino', 'Configurações salvas, para aplicá-las é necessário reiniciar, reiniciar agora?',
                    (QMessageBox.Yes | QMessageBox.No), QMessageBox.Information).exec_()
         else:
             inp_warning, inp_critical = advises['inputs']['warning'], advises['inputs']['critical']
@@ -546,7 +545,7 @@ class ArduinoWindow(QtWidgets.QWidget):
 
             if digital_warning != 0:
                 adv_three = 'Portas digitais duplicadas' if digital_warning > 1 else 'Porta digital duplicada'
-                MsgBox('Erro de validação', adv_three +', verifique as saídas inseridas e tente novamente!',
+                MsgBox('Erro de validação', adv_three + ', verifique as saídas inseridas e tente novamente!',
                        QMessageBox.Ok, QMessageBox.Warning).exec_()
 
             if len(inp_critical) != 0:
