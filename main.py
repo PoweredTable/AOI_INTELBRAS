@@ -262,6 +262,7 @@ class MainWindow(QMainWindow):
                                                 "color: rgb(255, 255, 255);")
 
     def show_arduino(self):
+        print(sys.getsizeof(self.second_window))
         self.second_window = ArduinoWindow()
         self.second_window.show()
 
@@ -283,6 +284,7 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.inputs, self.outputs = [], []
         self.readers = {}
 
+        #self.setAttribute(Qt.WA_DeleteOnClose)
         self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
 
         self.setWindowIcon(QIcon('icon_simnext.png'))
