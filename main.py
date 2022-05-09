@@ -1,16 +1,15 @@
 import json
 import os
 import time
-
+from ini_files import ArduinoIni
 import serial.serialutil
 from PyQt5 import QtCore, QtGui, QtWidgets
 from configparser import ConfigParser
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
-from pyfirmata import Arduino, util
+from pyfirmata import ArduinoNano, util
 
 from PyQt5.QtWidgets import QMainWindow, QApplication, QMessageBox
-
 from core import inspection
 from multiprocessing import Process, SimpleQueue
 from threading import Thread
@@ -71,7 +70,8 @@ class MainWindow(QMainWindow):
         self.core_process, self.queue_reader = None, None
         self.program_started = False
         self.console_queue = SimpleQueue()
-        self.second_window = None
+
+        self.arduino_window = None
 
         self.calha_nome = get_ini_configs()
         self.setWindowIcon(QIcon('icon_simnext.png'))
@@ -82,8 +82,6 @@ class MainWindow(QMainWindow):
         self.gridLayout = QtWidgets.QGridLayout()
 
         size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
-        size_policy.setHorizontalStretch(0)
-        size_policy.setVerticalStretch(0)
 
         font = QtGui.QFont()
         font.setPointSize(14)
@@ -244,27 +242,13 @@ class MainWindow(QMainWindow):
             self.console_textEdit.clear()
 
     def settings_verification(self):
-        settings = (('arduino.json', self.arduino_pushButton), ('cameras.json', self.cameras_pushButton))
-        unset_settings = []
-
-        for i, setting in enumerate(settings):
-            if os.path.isfile(f'settings/{setting[0]}') is False:
-                unset_settings.append(setting[1])
-                setting[1].setStyleSheet("background-color: rgb(207, 217, 15)")
-
-        if len(unset_settings) != 0:
-            self.turn_buttons(False, unset_settings)
-            self.console_textEdit.append(f'AOI {self.calha_nome} - arquivos de configuração inexistentes!\n')
-            self.console_textEdit.append('Por favor, realize as configurações necessárias ao lado.')
-
-        else:
-            self.start_pushButton.setStyleSheet("background-color: rgb(64, 134, 32);\n"
-                                                "color: rgb(255, 255, 255);")
+        self.arduino_window = ArduinoWindow()
+        #arduino_settings = ArduinoIni().get_settings()
+        #self.arduino_window = ArduinoWindow(*arduino_settings)
 
     def show_arduino(self):
-        print(sys.getsizeof(self.second_window))
-        self.second_window = ArduinoWindow()
-        self.second_window.show()
+        self.arduino_window.show()
+
 
 
 class MsgBox(QMessageBox):
@@ -280,11 +264,13 @@ class MsgBox(QMessageBox):
 class ArduinoWindow(QtWidgets.QWidget):
     def __init__(self):
         super(ArduinoWindow, self).__init__()
-        self.succeeded_connection = None
-        self.inputs, self.outputs = [], []
+
+        self.com, self.ports = None, ArduinoIni.parameters()
+        self.board = None
         self.readers = {}
 
-        #self.setAttribute(Qt.WA_DeleteOnClose)
+        size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+
         self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
 
         self.setWindowIcon(QIcon('icon_simnext.png'))
@@ -306,24 +292,33 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.porta_label.setText('Porta do Arduino:')
         self.porta_label.setFont(font)
 
-        self.COMS_comboBox = QtWidgets.QComboBox(self.groupBox)
-        self.COMS_comboBox.addItems(('COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7'))
-        self.COMS_comboBox.setFont(font)
+        self.com_lineEdit = QtWidgets.QLineEdit(self.groupBox)
+        self.com_lineEdit.setFont(font)
+        self.com_lineEdit.setAlignment(Qt.AlignCenter)
+        size_policy.setHorizontalStretch(4)
+        self.com_lineEdit.setSizePolicy(size_policy)
+        self.com_lineEdit.setReadOnly(True)
 
         self.connect_pushButton = QtWidgets.QPushButton(self.groupBox)
+        size_policy.setHorizontalStretch(3)
+        self.connect_pushButton.setSizePolicy(size_policy)
         self.connect_pushButton.setText('Conectar')
         self.connect_pushButton.setFont(font)
 
         self.groupBox_layout.addWidget(self.porta_label, 0, 0, 1, 1)
-        self.groupBox_layout.addWidget(self.COMS_comboBox, 0, 1, 1, 1)
+        self.groupBox_layout.addWidget(self.com_lineEdit, 0, 1, 1, 1)
         self.groupBox_layout.addWidget(self.connect_pushButton, 0, 2, 1, 1)
 
         self.inp_out_tabWidget = QtWidgets.QTabWidget(self.groupBox)
         self.inp_out_tabWidget.setEnabled(False)
         self.inp_out_tabWidget.setFont(font)
-        ###
+
         self.inp_tab = QtWidgets.QWidget()
         self.inp_tab_layout = QtWidgets.QGridLayout(self.inp_tab)  # first layout
+
+        self.simulate_pushButton = QtWidgets.QPushButton(self.inp_tab)
+        self.simulate_pushButton.setText('Simular ativação')
+        self.inp_tab_layout.addWidget(self.simulate_pushButton, 0, 0, 1, 2)
 
         self.inp_tab_frame = QtWidgets.QFrame()
         self.inp_tab_frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
@@ -333,17 +328,7 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.inp_tab_frame_layout.addLayout(self.inputs_frame_grid, 0, 0, 1, 1)
         self.inp_tab_layout.addWidget(self.inp_tab_frame, 1, 0, 1, 2)
 
-        self.add_pushButton = QtWidgets.QPushButton(self.inp_tab)
-        self.add_pushButton.setText('Adicionar')
-        self.inp_tab_layout.addWidget(self.add_pushButton, 0, 0, 1, 1)
-
-        self.remove_pushButton = QtWidgets.QPushButton(self.inp_tab)
-        self.remove_pushButton.setText('Remover')
-        self.remove_pushButton.setEnabled(False)
-        self.inp_tab_layout.addWidget(self.remove_pushButton, 0, 1, 1, 1)
-
         self.inp_out_tabWidget.addTab(self.inp_tab, 'Entradas')
-        ###
 
         self.out_tab = QtWidgets.QWidget()
         self.out_tab_layout = QtWidgets.QGridLayout(self.out_tab)
@@ -368,7 +353,7 @@ class ArduinoWindow(QtWidgets.QWidget):
                 self.out_tab_layout.addWidget(spin_box, r, c + 2, rs, cs)
 
                 self.out_tab_layout.addWidget(push_button, r, c + 3, rs, cs)
-                self.outputs.append((combo_box, spin_box))
+
                 push_button.setText('tocar')
 
                 if r > 3:
@@ -379,7 +364,6 @@ class ArduinoWindow(QtWidgets.QWidget):
                     push_button.setEnabled(False)
             else:
                 self.out_tab_layout.addWidget(push_button, r, c + 2, rs, cs + 1)
-                self.outputs.append((combo_box, push_button))
                 push_button.setText('ativar')
 
             for digital in digitalis:
@@ -392,57 +376,51 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.confirm_button.setEnabled(False)
         self.confirm_button.setText('Validar configurações')
         self.confirm_button.setFont(font)
+
         self.groupBox_layout.addWidget(self.confirm_button, 2, 0, 1, 3)
-
         self.groupBox_layout.addWidget(self.inp_out_tabWidget, 1, 0, 1, 3)
-        self.main_layout.addWidget(self.groupBox)
 
+        self.main_layout.addWidget(self.groupBox)
         self.central_layout.addLayout(self.main_layout)
+
         self.assing_functions()
+        self.connection_attempt(True)
 
     def assing_functions(self):
-        self.connect_pushButton.clicked.connect(self._connection_test)
-        self.add_pushButton.clicked.connect(self.add_inputs)
-        self.remove_pushButton.clicked.connect(self.remove_inputs)
+        self.connect_pushButton.clicked.connect(self.connection_attempt)
         self.confirm_button.clicked.connect(self.connections_verify)
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         for reader in list(self.readers.values()):
             reader.close()
 
-        if self.succeeded_connection is not None:
-            self.succeeded_connection.exit()
-
-    def _connection_test(self):
-        if self.succeeded_connection is None:
-            port = self.COMS_comboBox.currentText()
-            try:
-                arduino = Arduino(port)
-                it = util.Iterator(arduino)
-                it.start()
-                time.sleep(0.2)
-
-            except serial.serialutil.SerialException as e:
-                error_msg = MsgBox('Arduino', f'Conexão não sucedida! {e}', QMessageBox.Ok, QMessageBox.Warning)
+    def connection_attempt(self, first_run=False):
+        self.com = ArduinoIni.port_connection()
+        self.com_lineEdit.setText(self.com)
+        if 'COM' not in self.com:  # check if COM is now connected
+            if not first_run:
+                error_msg = MsgBox('Arduino', f'Conexão não sucedida, arduino não encontrado!',
+                                   QMessageBox.Ok, QMessageBox.Warning)
                 error_msg.exec_()
+            return
 
-            else:
-                self.succeeded_connection = arduino
-                self.connect_pushButton.setText('Desconectar')
-                self.COMS_comboBox.setEnabled(False)
-                self.inp_out_tabWidget.setEnabled(True)
-                self.confirm_button.setEnabled(True)
+        if self.board is None:
+            self.board = ArduinoNano(self.com)
+            it = util.Iterator(self.board)
+            it.start()
+            time.sleep(0.2)
 
-                if len(self.inputs) != 0:
-                    self.remove_pushButton.setEnabled(True)
+            self.connect_pushButton.setText('Desconectar')
+            self.inp_out_tabWidget.setEnabled(True)
+            self.confirm_button.setEnabled(True)
+
         else:
-            self.succeeded_connection.exit()
-            self.succeeded_connection = None
+            self.board.exit()
+            self.board = None
+            self.com_lineEdit.setText('Não conectado')
             self.connect_pushButton.setText('Conectar')
             self.inp_out_tabWidget.setEnabled(False)
-            self.COMS_comboBox.setEnabled(True)
             self.confirm_button.setEnabled(False)
-            self.remove_pushButton.setEnabled(False)
 
     def _alarm_switch(self, push_button):
         index = self.outputs[4][0].currentIndex()
@@ -497,7 +475,7 @@ class ArduinoWindow(QtWidgets.QWidget):
         if port not in self.readers:
             self.confirm_button.setEnabled(False)
             self.connect_pushButton.setEnabled(False)
-            self.readers[port] = InputReader(self.succeeded_connection, port)
+            self.readers[port] = InputReader(self.board, port)
             self.readers[port].signal.connect(self._reading_test_close)
             self.readers[port].show()
 
@@ -516,18 +494,18 @@ class ArduinoWindow(QtWidgets.QWidget):
             status = 1 if push_button.text() == 'ativar' else 0
             text = 'desativar' if status == 1 else 'ativar'
             push_button.setText(text)
-            self.succeeded_connection.digital[digital].write(status)
+            self.board.digital[digital].write(status)
 
         else:
             bipes = self.outputs[output_row][1].value()
             for _ in range(bipes):
-                self.succeeded_connection.digital[digital].write(1)
+                self.board.digital[digital].write(1)
                 time.sleep(0.11)
-                self.succeeded_connection.digital[digital].write(0)
+                self.board.digital[digital].write(0)
                 time.sleep(0.07)
 
     def connections_verify(self):
-        advises, json_dict = Validation(self.succeeded_connection, self.inputs, self.outputs).check()
+        advises, json_dict = Validation(self.board, self.inputs, self.outputs).check()
 
         if advises['any'] is False:
             with open('settings/arduino.json', 'w') as f:
