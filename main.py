@@ -1,8 +1,8 @@
 import json
 import os
 import time
-from ini_files import ArduinoIni
-import serial.serialutil
+from ini_files import ArduinoIni, return_operators
+
 from PyQt5 import QtCore, QtGui, QtWidgets
 from configparser import ConfigParser
 from PyQt5.QtGui import QIcon
@@ -324,6 +324,59 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.inp_tab_frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
         self.inp_tab_frame_layout = QtWidgets.QGridLayout(self.inp_tab_frame)
 
+        for r in range(3):
+            label = QtWidgets.QLabel(self.inp_tab_frame)
+            label.setText("Sensor:")
+
+            line_edit = QtWidgets.QLineEdit(self.inp_tab_frame)
+            line_edit.setText(f"SENS_{r+1}") 
+            line_edit.setAlignment(Qt.AlignCenter)
+            line_edit.setEnabled(False)
+
+            self.inp_tab_frame_layout.addWidget(label, r, 0, 1, 1)
+            self.inp_tab_frame_layout.addWidget(line_edit, r, 1, 1, 1)
+        
+        # parâmetros do primeiro sensor [SENS_1]
+        self.sens1_comboBox = QtWidgets.QComboBox(self.inp_tab_frame)
+
+        self.sens1_spinBox = QtWidgets.QDoubleSpinBox(self.inp_tab_frame)
+
+        self.sens1_pushButton = QtWidgets.QPushButton(self.inp_tab_frame)
+        self.sens1_pushButton.setText("Ler")
+
+        self.inp_tab_frame_layout.addWidget(self.sens1_comboBox, 0, 2, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens1_spinBox, 0, 3, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens1_pushButton, 0, 4, 1, 1)
+
+        # parâmetros do segundo sensor [SENS_2]
+        self.sens2_comboBox = QtWidgets.QComboBox(self.inp_tab_frame)
+
+        self.sens2_spinBox = QtWidgets.QDoubleSpinBox(self.inp_tab_frame)
+
+        self.sens2_pushButton = QtWidgets.QPushButton(self.inp_tab_frame)
+        self.sens2_pushButton.setText("Ler")
+
+        self.inp_tab_frame_layout.addWidget(self.sens2_comboBox, 1, 2, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens2_spinBox, 1, 3, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens2_pushButton, 1, 4, 1, 1)
+
+        # parâmetros do tereiro sensor [SENS_3]
+        self.sens3_comboBox = QtWidgets.QComboBox(self.inp_tab_frame)
+
+        self.sens3_spinBox = QtWidgets.QDoubleSpinBox(self.inp_tab_frame)
+        self.sens3_pushButton = QtWidgets.QPushButton(self.inp_tab_frame)
+        self.sens3_pushButton.setText("Ler")
+
+        self.inp_tab_frame_layout.addWidget(self.sens3_comboBox, 2, 2, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens3_spinBox, 2, 3, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens3_pushButton, 2, 4, 1, 1)
+
+        # adding operators and data items
+        for operator, function in return_operators().items():
+            self.sens1_comboBox.addItem(operator, function)
+            self.sens2_comboBox.addItem(operator, function)
+            self.sens3_comboBox.addItem(operator, function)
+
         self.inputs_frame_grid = QtWidgets.QGridLayout()
         self.inp_tab_frame_layout.addLayout(self.inputs_frame_grid, 0, 0, 1, 1)
         self.inp_tab_layout.addWidget(self.inp_tab_frame, 1, 0, 1, 2)
@@ -385,7 +438,7 @@ class ArduinoWindow(QtWidgets.QWidget):
 
         self.assing_functions()
         self.connection_attempt(True)
-
+        
     def assing_functions(self):
         self.connect_pushButton.clicked.connect(self.connection_attempt)
         self.confirm_button.clicked.connect(self.connections_verify)

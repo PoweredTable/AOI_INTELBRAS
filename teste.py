@@ -1,4 +1,3 @@
-x = '>'
+import operator
 
-y = '>='
-print(x in y)
+print(operator.gt == operator.gt)

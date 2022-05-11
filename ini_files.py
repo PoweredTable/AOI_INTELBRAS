@@ -9,7 +9,7 @@ import operator
 class ArduinoIni:
     @staticmethod
     def port_connection():
-        simulating = True
+        simulating = False
         com_port = [p.device for p in comports()
                     if any(ard in p.description for ard in ('Arduino', 'CH340'))]
 
@@ -69,17 +69,19 @@ class ArduinoIni:
 
                 if section == 'INPUTS':
                     port, opr, value = params.split('|')
-                    params = (f'a:{port}:i', op_dict(opr), float(value))
+                    params = (f'a:{port}:i', return_operators(opr), float(value))
                 ports[section][option] = params
 
         check_duplicates(ports)
         return ports
 
 
-def op_dict(opr):
-    ops = {'>': operator.gt, '<': operator.lt, '>=': operator.ge,
+def return_operators(opr=None):
+    operators_dict = {'>': operator.gt, '<': operator.lt, '>=': operator.ge,
            '<=': operator.le, '==': operator.eq}
-    return ops[opr]
+    if opr is None:
+        return operators_dict
+    return operators_dict[opr], opr
 
 
 def validate_ports(params, section):
