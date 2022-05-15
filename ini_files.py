@@ -9,7 +9,7 @@ import operator
 class ArduinoIni:
     @staticmethod
     def port_connection():
-        simulating = False
+        simulating = True
         com_port = [p.device for p in comports()
                     if any(ard in p.description for ard in ('Arduino', 'CH340'))]
 
@@ -66,19 +66,22 @@ class ArduinoIni:
 
                 elif is_valid is None:
                     params = False
+                    ports[section][option] = params
+                    continue
 
                 if section == 'INPUTS':
                     port, opr, value = params.split('|')
-                    params = (f'a:{port}:i', return_operators(opr), float(value))
+                    params = [f'a:{port}:i', return_operators(opr), float(value)]
+
                 ports[section][option] = params
 
         check_duplicates(ports)
-        return ports
+        return ports['INPUTS'], ports['OUTPUTS']
 
 
 def return_operators(opr=None):
     operators_dict = {'>': operator.gt, '<': operator.lt, '>=': operator.ge,
-           '<=': operator.le, '==': operator.eq}
+                      '<=': operator.le, '==': operator.eq}
     if opr is None:
         return operators_dict
     return operators_dict[opr], opr
@@ -88,12 +91,12 @@ def validate_ports(params, section):
     if params != '':  # params can't be empty
         if params != 'off':  # it could be 'off', meaning that the port is not active
             if section == 'INPUTS':
-                operators = ('>=', '<=', '>', '<', '==')
                 params = params.split('|')
                 if len(params) == 3 and type(params) is list:
                     port, cond, value = params  # the params are: analogical port, operator (condition) and float value
                     try:
-                        if port.isnumeric() and any(cond == opr for opr in operators) and type(float(value)) is float:
+                        if port.isnumeric() and any(cond == opr for opr in
+                                                    ('>=', '<=', '>', '<', '==')) and type(float(value)) is float:
                             if int(port) <= 7:
                                 return True  # maximum analogical ports of Arduino Nano
                     except ValueError:
@@ -110,15 +113,15 @@ def validate_ports(params, section):
 def check_duplicates(ports):
     seen = []
     for value in ports['INPUTS'].values():
-        if type(value) is not bool:
+        if value is not False:
             if value[0] in seen:
                 raise IOError('Configuration file arduino.ini has duplicated analogical values!')
             seen.append(value[0])
 
     seen = []
     for value in ports['OUTPUTS'].values():
-        if type(value) is not bool:
-            if value in seen and value:
+        if value is not False:
+            if value in seen:
                 raise IOError('Configuration file arduino.ini has duplicated digital values!')
             seen.append(value)
 

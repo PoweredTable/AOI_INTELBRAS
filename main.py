@@ -243,12 +243,11 @@ class MainWindow(QMainWindow):
 
     def settings_verification(self):
         self.arduino_window = ArduinoWindow()
-        #arduino_settings = ArduinoIni().get_settings()
-        #self.arduino_window = ArduinoWindow(*arduino_settings)
+        # arduino_settings = ArduinoIni().get_settings()
+        # self.arduino_window = ArduinoWindow(*arduino_settings)
 
     def show_arduino(self):
         self.arduino_window.show()
-
 
 
 class MsgBox(QMessageBox):
@@ -265,9 +264,9 @@ class ArduinoWindow(QtWidgets.QWidget):
     def __init__(self):
         super(ArduinoWindow, self).__init__()
 
-        self.com, self.ports = None, ArduinoIni.parameters()
-        self.board = None
-        self.readers = {}
+        self.ini_inputs, self.ini_outputs = ArduinoIni.parameters()
+        self.com, self.board = None, None
+        self.sensors = {'sens_1': True, 'sens_2': True, 'sens_3': True}
 
         size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
 
@@ -314,7 +313,7 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.inp_out_tabWidget.setFont(font)
 
         self.inp_tab = QtWidgets.QWidget()
-        self.inp_tab_layout = QtWidgets.QGridLayout(self.inp_tab)  # first layout
+        self.inp_tab_layout = QtWidgets.QGridLayout(self.inp_tab)
 
         self.simulate_pushButton = QtWidgets.QPushButton(self.inp_tab)
         self.simulate_pushButton.setText('Simular ativação')
@@ -324,65 +323,50 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.inp_tab_frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
         self.inp_tab_frame_layout = QtWidgets.QGridLayout(self.inp_tab_frame)
 
-        for r in range(3):
-            label = QtWidgets.QLabel(self.inp_tab_frame)
-            label.setText("Sensor:")
-
-            line_edit = QtWidgets.QLineEdit(self.inp_tab_frame)
-            line_edit.setText(f"SENS_{r+1}") 
-            line_edit.setAlignment(Qt.AlignCenter)
-            line_edit.setEnabled(False)
-
-            self.inp_tab_frame_layout.addWidget(label, r, 0, 1, 1)
-            self.inp_tab_frame_layout.addWidget(line_edit, r, 1, 1, 1)
-        
         # parâmetros do primeiro sensor [SENS_1]
+        self.sens1_checkBox = QtWidgets.QCheckBox(self.inp_tab_frame)
+        self.sens1_lineEdit = QtWidgets.QLineEdit(self.inp_tab_frame)
         self.sens1_comboBox = QtWidgets.QComboBox(self.inp_tab_frame)
+        self.sens1_doubleSpinBox = QtWidgets.QDoubleSpinBox(self.inp_tab_frame)
 
-        self.sens1_spinBox = QtWidgets.QDoubleSpinBox(self.inp_tab_frame)
-
-        self.sens1_pushButton = QtWidgets.QPushButton(self.inp_tab_frame)
-        self.sens1_pushButton.setText("Ler")
-
-        self.inp_tab_frame_layout.addWidget(self.sens1_comboBox, 0, 2, 1, 1)
-        self.inp_tab_frame_layout.addWidget(self.sens1_spinBox, 0, 3, 1, 1)
-        self.inp_tab_frame_layout.addWidget(self.sens1_pushButton, 0, 4, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens1_checkBox, 0, 1, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens1_lineEdit, 0, 2, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens1_comboBox, 0, 3, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens1_doubleSpinBox, 0, 4, 1, 1)
 
         # parâmetros do segundo sensor [SENS_2]
+        self.sens2_checkBox = QtWidgets.QCheckBox(self.inp_tab_frame)
+        self.sens2_lineEdit = QtWidgets.QLineEdit(self.inp_tab_frame)
+        # self.sens2_lineEdit.setSizePolicy(size_policy)
         self.sens2_comboBox = QtWidgets.QComboBox(self.inp_tab_frame)
+        self.sens2_doubleSpinBox = QtWidgets.QDoubleSpinBox(self.inp_tab_frame)
 
-        self.sens2_spinBox = QtWidgets.QDoubleSpinBox(self.inp_tab_frame)
+        self.inp_tab_frame_layout.addWidget(self.sens2_checkBox, 1, 1, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens2_lineEdit, 1, 2, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens2_comboBox, 1, 3, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens2_doubleSpinBox, 1, 4, 1, 1)
 
-        self.sens2_pushButton = QtWidgets.QPushButton(self.inp_tab_frame)
-        self.sens2_pushButton.setText("Ler")
-
-        self.inp_tab_frame_layout.addWidget(self.sens2_comboBox, 1, 2, 1, 1)
-        self.inp_tab_frame_layout.addWidget(self.sens2_spinBox, 1, 3, 1, 1)
-        self.inp_tab_frame_layout.addWidget(self.sens2_pushButton, 1, 4, 1, 1)
-
-        # parâmetros do tereiro sensor [SENS_3]
+        # parâmetros do terceiro sensor [SENS_3]
+        self.sens3_checkBox = QtWidgets.QCheckBox(self.inp_tab_frame)
+        self.sens3_lineEdit = QtWidgets.QLineEdit(self.inp_tab_frame)
+        # self.sens3_lineEdit.setSizePolicy(size_policy)
         self.sens3_comboBox = QtWidgets.QComboBox(self.inp_tab_frame)
+        self.sens3_doubleSpinBox = QtWidgets.QDoubleSpinBox(self.inp_tab_frame)
 
-        self.sens3_spinBox = QtWidgets.QDoubleSpinBox(self.inp_tab_frame)
-        self.sens3_pushButton = QtWidgets.QPushButton(self.inp_tab_frame)
-        self.sens3_pushButton.setText("Ler")
-
-        self.inp_tab_frame_layout.addWidget(self.sens3_comboBox, 2, 2, 1, 1)
-        self.inp_tab_frame_layout.addWidget(self.sens3_spinBox, 2, 3, 1, 1)
-        self.inp_tab_frame_layout.addWidget(self.sens3_pushButton, 2, 4, 1, 1)
-
-        # adding operators and data items
-        for operator, function in return_operators().items():
-            self.sens1_comboBox.addItem(operator, function)
-            self.sens2_comboBox.addItem(operator, function)
-            self.sens3_comboBox.addItem(operator, function)
+        self.inp_tab_frame_layout.addWidget(self.sens3_checkBox, 2, 1, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens3_lineEdit, 2, 2, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens3_comboBox, 2, 3, 1, 1)
+        self.inp_tab_frame_layout.addWidget(self.sens3_doubleSpinBox, 2, 4, 1, 1)
 
         self.inputs_frame_grid = QtWidgets.QGridLayout()
         self.inp_tab_frame_layout.addLayout(self.inputs_frame_grid, 0, 0, 1, 1)
         self.inp_tab_layout.addWidget(self.inp_tab_frame, 1, 0, 1, 2)
 
-        self.inp_out_tabWidget.addTab(self.inp_tab, 'Entradas')
+        self.construct_inputs()
+        self.set_inputs()
 
+        self.inp_out_tabWidget.addTab(self.inp_tab, 'Entradas')
+        '''
         self.out_tab = QtWidgets.QWidget()
         self.out_tab_layout = QtWidgets.QGridLayout(self.out_tab)
 
@@ -424,7 +408,7 @@ class ArduinoWindow(QtWidgets.QWidget):
             r += 1
 
         self.inp_out_tabWidget.addTab(self.out_tab, 'Saídas')
-
+        '''
         self.confirm_button = QtWidgets.QPushButton(self.groupBox)
         self.confirm_button.setEnabled(False)
         self.confirm_button.setText('Validar configurações')
@@ -438,10 +422,91 @@ class ArduinoWindow(QtWidgets.QWidget):
 
         self.assing_functions()
         self.connection_attempt(True)
-        
+
     def assing_functions(self):
         self.connect_pushButton.clicked.connect(self.connection_attempt)
         self.confirm_button.clicked.connect(self.connections_verify)
+        self.simulate_pushButton.clicked.connect(self.activation_test)
+
+        self.sens1_checkBox.clicked.connect(lambda state: self.get_state('sens_1'))
+        self.sens2_checkBox.clicked.connect(lambda state: self.get_state('sens_2'))
+        self.sens3_checkBox.clicked.connect(lambda state: self.get_state('sens_3'))
+
+    def get_state(self, key):
+        if self.sensors[key] is False:
+            self.switch_widgets_state(key, True)
+        else:
+            self.switch_widgets_state(key)
+
+    def construct_inputs(self):
+        self.sens1_lineEdit.setText('sensor 1')
+        self.sens1_lineEdit.setAlignment(Qt.AlignCenter)
+        self.sens1_lineEdit.setReadOnly(True)
+
+        self.sens1_doubleSpinBox.setDecimals(4)
+        self.sens1_doubleSpinBox.setMaximum(1.0)
+        self.sens1_doubleSpinBox.setSingleStep(0.025)
+
+        self.sens2_lineEdit.setText('sensor 2')
+        self.sens2_lineEdit.setAlignment(Qt.AlignCenter)
+        self.sens2_lineEdit.setReadOnly(True)
+
+        self.sens2_doubleSpinBox.setDecimals(4)
+        self.sens2_doubleSpinBox.setMaximum(1.0)
+        self.sens2_doubleSpinBox.setSingleStep(0.025)
+
+        self.sens3_lineEdit.setText('sensor 3')
+        self.sens3_lineEdit.setAlignment(Qt.AlignCenter)
+        self.sens3_lineEdit.setReadOnly(True)
+
+        self.sens3_doubleSpinBox.setDecimals(4)
+        self.sens3_doubleSpinBox.setMaximum(1.0)
+        self.sens3_doubleSpinBox.setSingleStep(0.025)
+
+        for operator, function in return_operators().items():
+            self.sens1_comboBox.addItem(operator, function)
+            self.sens2_comboBox.addItem(operator, function)
+            self.sens3_comboBox.addItem(operator, function)
+
+    def set_inputs(self):
+        if self.ini_inputs['sens_1'] is False:
+            self.switch_widgets_state('sens_1')
+        else:
+            self.sens1_checkBox.setChecked(True)
+            self.sens1_comboBox.setCurrentText(self.ini_inputs['sens_1'][1][1])
+            self.sens1_doubleSpinBox.setValue(self.ini_inputs['sens_1'][2])
+
+        if self.ini_inputs['sens_2'] is False:
+            self.switch_widgets_state('sens_2')
+        else:
+            self.sens2_checkBox.setChecked(True)
+            self.sens2_comboBox.setCurrentText(self.ini_inputs['sens_2'][1][1])
+            self.sens2_doubleSpinBox.setValue(self.ini_inputs['sens_2'][2])
+
+        if self.ini_inputs['sens_3'] is False:
+            self.switch_widgets_state('sens_3')
+        else:
+            self.sens3_checkBox.setChecked(True)
+            self.sens3_comboBox.setCurrentText(self.ini_inputs['sens_3'][1][1])
+            self.sens3_doubleSpinBox.setValue(self.ini_inputs['sens_3'][2])
+
+    def switch_widgets_state(self, key, enabled=False):
+        if key == 'sens_1':
+            self.sens1_lineEdit.setEnabled(enabled)
+            self.sens1_comboBox.setEnabled(enabled)
+            self.sens1_doubleSpinBox.setEnabled(enabled)
+
+        elif key == 'sens_2':
+            self.sens2_lineEdit.setEnabled(enabled)
+            self.sens2_comboBox.setEnabled(enabled)
+            self.sens2_doubleSpinBox.setEnabled(enabled)
+
+        elif key == 'sens_3':
+            self.sens3_lineEdit.setEnabled(enabled)
+            self.sens3_comboBox.setEnabled(enabled)
+            self.sens3_doubleSpinBox.setEnabled(enabled)
+
+        self.sensors[key] = enabled
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         for reader in list(self.readers.values()):
@@ -459,8 +524,7 @@ class ArduinoWindow(QtWidgets.QWidget):
 
         if self.board is None:
             self.board = ArduinoNano(self.com)
-            it = util.Iterator(self.board)
-            it.start()
+            util.Iterator(self.board).start()
             time.sleep(0.2)
 
             self.connect_pushButton.setText('Desconectar')
@@ -482,46 +546,10 @@ class ArduinoWindow(QtWidgets.QWidget):
         push_button.setEnabled(action)
         self.outputs[4][1].setEnabled(action)
 
-    def add_inputs(self):
-        rows = len(self.inputs)
+    def activation_test(self):
+        Simulation(self.board, self._generate_input_configs(), self.ini_outputs['ctr_est'])
 
-        if rows < 6:
-            label = QtWidgets.QLabel(self.inp_tab_frame)
-            label.setText('Referência:')
-            self.inp_tab_frame_layout.addWidget(label, rows, 0, 1, 1)
-
-            input_type = QtWidgets.QComboBox(self.inp_tab_frame)
-            input_type.addItems(('SEN1', 'SEN2', 'SEN3', 'BTN1', 'BTN2', 'BTN3'))
-            self.inp_tab_frame_layout.addWidget(input_type, rows, 1, 1, 1)
-
-            input_port = QtWidgets.QComboBox(self.inp_tab_frame)
-            for i in range(6):
-                input_port.addItem(f'A{i}', f'a:{i}:i')
-            self.inp_tab_frame_layout.addWidget(input_port, rows, 2, 1, 1)
-
-            test_button = QtWidgets.QPushButton(self.inp_tab_frame)
-            test_button.clicked.connect(lambda click, r=rows: self.reading_test(r))
-            test_button.setText('Testar')
-            self.inp_tab_frame_layout.addWidget(test_button, rows, 3, 1, 1)
-
-            new_input_row = (label, input_type, input_port, test_button)
-            self.inputs.append(new_input_row)
-
-            self.remove_pushButton.setEnabled(True)
-            if rows > 4:
-                self.add_pushButton.setEnabled(False)
-
-    def remove_inputs(self):
-        self.add_pushButton.setEnabled(True)
-        for widget in self.inputs[-1]:
-            self.inp_tab_frame_layout.removeWidget(widget)
-            widget.deleteLater()
-
-        self.inputs.pop(-1)
-        if len(self.inputs) == 0:
-            self.remove_pushButton.setEnabled(False)
-
-    def reading_test(self, input_row):
+        '''
         index = self.inputs[input_row][2].currentIndex()
         port = self.inputs[input_row][2].itemData(index)
 
@@ -531,6 +559,26 @@ class ArduinoWindow(QtWidgets.QWidget):
             self.readers[port] = InputReader(self.board, port)
             self.readers[port].signal.connect(self._reading_test_close)
             self.readers[port].show()
+        '''
+
+    def _generate_input_configs(self):
+        ini_inputs = {}
+        for key in self.ini_inputs:
+            ini_inputs[key] = self._return_configs(key) if self.sensors[key] else False
+        return ini_inputs
+
+    def _return_configs(self, key):
+        if key == 'sens_1':
+            return 'a:0:i', (self.sens1_comboBox.currentData(), self.sens1_comboBox.currentText()),\
+                   self.sens1_doubleSpinBox.value()
+
+        elif key == 'sens_2':
+            return 'a:1:i', (self.sens2_comboBox.currentData(), self.sens2_comboBox.currentText()),\
+                   self.sens2_doubleSpinBox.value()
+
+        else:
+            return 'a:2:i', (self.sens3_comboBox.currentData(), self.sens3_comboBox.currentText()),\
+                   self.sens3_doubleSpinBox.value()
 
     def _reading_test_close(self, port):
         self.readers.pop(port)
@@ -571,7 +619,7 @@ class ArduinoWindow(QtWidgets.QWidget):
             digital_warning = advises['digital_warning']
             if inp_warning != 0:
                 adv_one = 'Referênicas ou portas analógicas duplicadas' if inp_warning > 1 else \
-                          'Referência ou porta analógica duplicada'
+                    'Referência ou porta analógica duplicada'
 
                 MsgBox('Erro de validação', adv_one + ', verifique as entradas inseridas e tente novamente!',
                        QMessageBox.Ok, QMessageBox.Warning).exec_()
@@ -583,7 +631,7 @@ class ArduinoWindow(QtWidgets.QWidget):
 
             if len(inp_critical) != 0:
                 adv_two = f'Portas analógicas {inp_critical} não retornam valores' if len(inp_critical) > 1 else \
-                          f'Porta analógica {inp_critical[0]} não retorna valores'
+                    f'Porta analógica {inp_critical[0]} não retorna valores'
                 MsgBox('Erro de validação', adv_two + ', verifique as conexões do arduino e tente novamente!',
                        QMessageBox.Ok, QMessageBox.Critical).exec_()
 
@@ -657,6 +705,16 @@ class Validation:
             time.sleep(0.125)
         self.nano.taken['analog'][taken_port] = False
         return True if value is not None else False
+
+
+class Simulation(QtWidgets.QWidget):
+    def __init__(self, board, inputs, ctr_est):
+        self.board = board
+
+        self.setWindowTitle('Simulação de ativação')
+        self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
+
+        self.setWindowIcon(QIcon('icon_simnext.png'))
 
 
 class InputReader(QtWidgets.QWidget):
