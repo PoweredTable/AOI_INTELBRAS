@@ -1,3 +1,4 @@
-import operator
+x = [1, 2, 3]
 
-print(operator.gt == operator.gt)
+print(x[5])
+

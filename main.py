@@ -1,8 +1,9 @@
 import json
 import os
+import threading
 import time
 from ini_files import ArduinoIni, return_operators
-
+from trigger import generate_trigger_function
 from PyQt5 import QtCore, QtGui, QtWidgets
 from configparser import ConfigParser
 from PyQt5.QtGui import QIcon
@@ -266,7 +267,8 @@ class ArduinoWindow(QtWidgets.QWidget):
 
         self.ini_inputs, self.ini_outputs = ArduinoIni.parameters()
         self.com, self.board = None, None
-        self.sensors = {'sens_1': True, 'sens_2': True, 'sens_3': True}
+        self.sensors = {}
+        self.simulation_window = None
 
         size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
 
@@ -364,6 +366,7 @@ class ArduinoWindow(QtWidgets.QWidget):
 
         self.construct_inputs()
         self.set_inputs()
+        self.check_actives()
 
         self.inp_out_tabWidget.addTab(self.inp_tab, 'Entradas')
         '''
@@ -420,10 +423,10 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.main_layout.addWidget(self.groupBox)
         self.central_layout.addLayout(self.main_layout)
 
-        self.assing_functions()
+        self.connect_functions()
         self.connection_attempt(True)
 
-    def assing_functions(self):
+    def connect_functions(self):
         self.connect_pushButton.clicked.connect(self.connection_attempt)
         self.confirm_button.clicked.connect(self.connections_verify)
         self.simulate_pushButton.clicked.connect(self.activation_test)
@@ -435,11 +438,30 @@ class ArduinoWindow(QtWidgets.QWidget):
     def get_state(self, key):
         if self.sensors[key] is False:
             self.switch_widgets_state(key, True)
+            self.simulate_pushButton.setEnabled(True)
+            self.confirm_button.setEnabled(True)
         else:
             self.switch_widgets_state(key)
 
+        self.check_actives()
+
+    def check_actives(self):
+        actives = [sensor for sensor, active in self.sensors.items() if active is True]
+        if len(actives) == 1:
+            active = actives[0]
+            if active == 'sens_1':
+                self.sens1_checkBox.setEnabled(False)
+            elif active == 'sens_2':
+                self.sens2_checkBox.setEnabled(False)
+            else:
+                self.sens3_checkBox.setEnabled(False)
+        else:
+            self.sens1_checkBox.setEnabled(True)
+            self.sens2_checkBox.setEnabled(True)
+            self.sens3_checkBox.setEnabled(True)
+
     def construct_inputs(self):
-        self.sens1_lineEdit.setText('sensor 1')
+        self.sens1_lineEdit.setText('SENSOR 1')
         self.sens1_lineEdit.setAlignment(Qt.AlignCenter)
         self.sens1_lineEdit.setReadOnly(True)
 
@@ -447,7 +469,7 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.sens1_doubleSpinBox.setMaximum(1.0)
         self.sens1_doubleSpinBox.setSingleStep(0.025)
 
-        self.sens2_lineEdit.setText('sensor 2')
+        self.sens2_lineEdit.setText('SENSOR 2')
         self.sens2_lineEdit.setAlignment(Qt.AlignCenter)
         self.sens2_lineEdit.setReadOnly(True)
 
@@ -455,7 +477,7 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.sens2_doubleSpinBox.setMaximum(1.0)
         self.sens2_doubleSpinBox.setSingleStep(0.025)
 
-        self.sens3_lineEdit.setText('sensor 3')
+        self.sens3_lineEdit.setText('SENSOR 3')
         self.sens3_lineEdit.setAlignment(Qt.AlignCenter)
         self.sens3_lineEdit.setReadOnly(True)
 
@@ -475,6 +497,7 @@ class ArduinoWindow(QtWidgets.QWidget):
             self.sens1_checkBox.setChecked(True)
             self.sens1_comboBox.setCurrentText(self.ini_inputs['sens_1'][1][1])
             self.sens1_doubleSpinBox.setValue(self.ini_inputs['sens_1'][2])
+            self.sensors['sens_1'] = True
 
         if self.ini_inputs['sens_2'] is False:
             self.switch_widgets_state('sens_2')
@@ -482,6 +505,7 @@ class ArduinoWindow(QtWidgets.QWidget):
             self.sens2_checkBox.setChecked(True)
             self.sens2_comboBox.setCurrentText(self.ini_inputs['sens_2'][1][1])
             self.sens2_doubleSpinBox.setValue(self.ini_inputs['sens_2'][2])
+            self.sensors['sens_2'] = True
 
         if self.ini_inputs['sens_3'] is False:
             self.switch_widgets_state('sens_3')
@@ -489,6 +513,7 @@ class ArduinoWindow(QtWidgets.QWidget):
             self.sens3_checkBox.setChecked(True)
             self.sens3_comboBox.setCurrentText(self.ini_inputs['sens_3'][1][1])
             self.sens3_doubleSpinBox.setValue(self.ini_inputs['sens_3'][2])
+            self.sensors['sens_3'] = True
 
     def switch_widgets_state(self, key, enabled=False):
         if key == 'sens_1':
@@ -507,10 +532,6 @@ class ArduinoWindow(QtWidgets.QWidget):
             self.sens3_doubleSpinBox.setEnabled(enabled)
 
         self.sensors[key] = enabled
-
-    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
-        for reader in list(self.readers.values()):
-            reader.close()
 
     def connection_attempt(self, first_run=False):
         self.com = ArduinoIni.port_connection()
@@ -547,37 +568,33 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.outputs[4][1].setEnabled(action)
 
     def activation_test(self):
-        Simulation(self.board, self._generate_input_configs(), self.ini_outputs['ctr_est'])
+        self.simulation_window = Simulation(self.board, self._generate_input_configs(), self.ini_outputs['pin_pne'])
+        self.simulation_window.show()
 
-        '''
-        index = self.inputs[input_row][2].currentIndex()
-        port = self.inputs[input_row][2].itemData(index)
-
-        if port not in self.readers:
-            self.confirm_button.setEnabled(False)
-            self.connect_pushButton.setEnabled(False)
-            self.readers[port] = InputReader(self.board, port)
-            self.readers[port].signal.connect(self._reading_test_close)
-            self.readers[port].show()
-        '''
+    def return_trigger_function(self):
+        return generate_trigger_function(self._generate_input_configs(), True)[0]
 
     def _generate_input_configs(self):
         ini_inputs = {}
-        for key in self.ini_inputs:
-            ini_inputs[key] = self._return_configs(key) if self.sensors[key] else False
+        for i, key in enumerate(self.ini_inputs):
+            if self.sensors[key]:
+                ini_inputs[i] = self._return_configs(key)
         return ini_inputs
 
     def _return_configs(self, key):
         if key == 'sens_1':
-            return 'a:0:i', (self.sens1_comboBox.currentData(), self.sens1_comboBox.currentText()),\
+            return self.board.get_pin('a:0:i').read,\
+                   (self.sens1_comboBox.currentData(), self.sens1_comboBox.currentText()), \
                    self.sens1_doubleSpinBox.value()
 
         elif key == 'sens_2':
-            return 'a:1:i', (self.sens2_comboBox.currentData(), self.sens2_comboBox.currentText()),\
+            return self.board.get_pin('a:1:i').read, \
+                   (self.sens2_comboBox.currentData(), self.sens2_comboBox.currentText()), \
                    self.sens2_doubleSpinBox.value()
 
         else:
-            return 'a:2:i', (self.sens3_comboBox.currentData(), self.sens3_comboBox.currentText()),\
+            return self.board.get_pin('a:2:i').read, \
+                   (self.sens3_comboBox.currentData(), self.sens3_comboBox.currentText()), \
                    self.sens3_doubleSpinBox.value()
 
     def _reading_test_close(self, port):
@@ -708,13 +725,92 @@ class Validation:
 
 
 class Simulation(QtWidgets.QWidget):
-    def __init__(self, board, inputs, ctr_est):
+    def __init__(self, board, inputs, pneumatic):
+        super(Simulation, self).__init__()
         self.board = board
+        self.input_widgets = {}
+        self.pneumatic = pneumatic
 
-        self.setWindowTitle('Simulação de ativação')
+        self.triggers = generate_trigger_function(inputs)
+
+        self.setWindowTitle('Simulação')
         self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
-
         self.setWindowIcon(QIcon('icon_simnext.png'))
+
+        self.central_layout = QtWidgets.QGridLayout(self)
+
+        size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        font = QtGui.QFont()
+        c = 0
+        for sensor in range(len(inputs)):
+            lineEdit_name = QtWidgets.QLineEdit(self)
+            font.setPointSize(9)
+            lineEdit_name.setText(f'SENSOR {sensor+1}')
+            lineEdit_name.setFont(font)
+            lineEdit_name.setAlignment(Qt.AlignCenter)
+            size_policy.setVerticalPolicy(QtWidgets.QSizePolicy.Expanding)
+            lineEdit_name.setSizePolicy(size_policy)
+            lineEdit_name.setReadOnly(True)
+
+            lineEdit_value = QtWidgets.QLineEdit(self)
+            font.setPointSize(11)
+            lineEdit_value.setFont(font)
+            lineEdit_value.setAlignment(Qt.AlignCenter)
+            size_policy.setVerticalPolicy(QtWidgets.QSizePolicy.Fixed)
+            lineEdit_value.setSizePolicy(size_policy)
+            lineEdit_value.setReadOnly(True)
+            self.input_widgets[sensor] = Thread(target=self._reader,
+                                                args=(inputs[sensor][0], lineEdit_name, lineEdit_value,
+                                                      self.triggers[sensor]))
+
+            self.central_layout.addWidget(lineEdit_name, 0, c, 1, 1)
+            self.central_layout.addWidget(lineEdit_value, 1, c, 1, 1)
+            c += 1
+
+        self.finish_pushButton = QtWidgets.QPushButton(self)
+        self.finish_pushButton.setText('Finalizar simulação')
+        font.setPointSize(10)
+        self.finish_pushButton.setFont(font)
+        self.central_layout.addWidget(self.finish_pushButton, 2, 0, 1, c)
+        self.keep_reading = True
+
+        self.resize_accordingly()
+
+        for thread in self.input_widgets.values():
+            thread.start()
+
+        for thread in self.input_widgets.values():
+            thread.join()
+
+    def _reader(self, sensor, sensor_name, sensor_value, trigger_func):
+        reading = False
+        for _ in range(3):
+            try:
+                trigger_func()
+            except TypeError:
+                time.sleep(0.0025)
+            else:
+                reading = True
+                break
+
+        if not reading:
+            sensor_value.setText('None')
+
+        else:
+            while self.keep_reading:
+                sensor_value.setText(f'{sensor.read()}')
+
+                if trigger_func():
+                    pass
+
+    def resize_accordingly(self):
+        sensors = len(self.input_widgets)
+        if sensors == 1:
+            self.resize(200, 238)
+        elif sensors == 2:
+            self.resize(317, 238)
+        else:
+            self.resize(423, 238)
 
 
 class InputReader(QtWidgets.QWidget):
