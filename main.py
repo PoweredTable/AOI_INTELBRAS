@@ -2,7 +2,7 @@ import json
 import os
 import threading
 import time
-from ini_files import ArduinoIni, return_operators
+from ini_files import ArduinoIni, get_opr
 from trigger import generate_trigger_function
 from PyQt5 import QtCore, QtGui, QtWidgets
 from configparser import ConfigParser
@@ -485,7 +485,7 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.sens3_doubleSpinBox.setMaximum(1.0)
         self.sens3_doubleSpinBox.setSingleStep(0.025)
 
-        for operator, function in return_operators().items():
+        for operator, function in get_opr().items():
             self.sens1_comboBox.addItem(operator, function)
             self.sens2_comboBox.addItem(operator, function)
             self.sens3_comboBox.addItem(operator, function)

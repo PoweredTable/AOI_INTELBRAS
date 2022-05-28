@@ -28,13 +28,19 @@ class ArduinoIni:
     @staticmethod
     def parameters():
         ports = {'INPUTS': {}, 'OUTPUTS': {}}
-        default_ports = {'INPUTS': {'opt': ['sens_1', 'sens_2', 'sens_3'],
-                                    'def': ['0|>|0.1', '1|>|0.1', '2|>|0.1']},
-                         'OUTPUTS': {'opt': ['ctr_est', 'pin_pne', 'ctr_luz', 'alr_est', 'alr_mqn'],
-                                     'def': [3, 8, 6, 2, 'off']}}
+        default_params = {'INPUTS': {'sensor_1': '==|1', 'sensor_2': 'off', 'sensor_3': 'off'},
+                          'OUTPUTS': {'inverter': 'on', 'lights': 'on', 'buzzer': 'on',
+                                      'valve_1': 'on', 'valve_2': 'off', 'digital_1': 'off',
+                                      'digital_2': 'off', 'emergency': 'off'}}
+
+        default_ports = {'INPUTS': {'sensor_1': 'a:0:i', 'sensor_2': 'a:1:i', 'sensor_3': 'a:2:i'},
+                         'OUTPUTS': {'inverter': 3, 'lights': 6, 'buzzer': 2,
+                                     'valve_1': 8, 'valve_2': 7, 'digital_1': 'a:4:i',
+                                     'digital_2': 'a:5:i', 'emergency': 5}}
+
         ini_file = ConfigParser()
         if os.path.isfile('settings/arduino.ini') is False:  # First run
-            ini_file = default_ini(ini_file, default_ports, False)
+            ini_file = default_ini(ini_file, default_params, False)
             print('Arquivo arduino.ini gerado em configurações padrão.')
 
         else:
@@ -42,101 +48,50 @@ class ArduinoIni:
                 ini_file.read('settings/arduino.ini')
             except configparser.MissingSectionHeaderError:
                 warnings.warn('Missing arduino sections, recreating settings/arduino.ini...')
-                ini_file = default_ini(ini_file, default_ports)
+                ini_file = default_ini(ini_file, default_params)
 
-        if any(section not in ('INPUTS', 'OUTPUTS') for section in ini_file.sections()):
+        if any(section not in default_params.keys() for section in ini_file.sections()):
             warnings.warn('Missing arduino sections, recreating settings/arduino.ini...')
-            ini_file = default_ini(ini_file, default_ports)
+            ini_file = default_ini(ini_file, default_params)
 
-        for section in ('INPUTS', 'OUTPUTS'):
-            options = default_ports[section]['opt']
-            if options != ini_file.options(section):
+        for section in default_params.keys():
+            if any(option not in default_params[section].keys() for option in ini_file.options(section)):
                 warnings.warn('Missing arduino options, recreating settings/arduino.ini...')
-                ini_file = default_ini(ini_file, default_ports)
+                ini_file = default_ini(ini_file, default_params)
 
-            defaults = default_ports[section]['def']
-            for option, default in zip(options, defaults):
-                params = ini_file.get(section, option)
+            ports[section] = {option: get_params(default_ports[section][option], ini_file.get(section, option))
+                              for option in ini_file.options(section) if ini_file.get(section, option) != 'off'}
 
-                is_valid = validate_ports(params, section)
-                if is_valid is False:
-                    warnings.warn(f"Option {option} in [{section}] doesn't have a "
-                                  f"valid value, using default value {default} instead!")
-                    params = default
-
-                elif is_valid is None:
-                    params = False
-                    ports[section][option] = params
-                    continue
-
-                if section == 'INPUTS':
-                    port, opr, value = params.split('|')
-                    params = [f'a:{port}:i', return_operators(opr), float(value)]
-
-                ports[section][option] = params
-
-        check_duplicates(ports)
         return ports['INPUTS'], ports['OUTPUTS']
 
 
-def return_operators(opr=None):
+def get_params(option, value):
+    if value == 'on':
+        return option
+
+    return option, get_opr(value)
+
+
+def get_opr(opr=None):
     operators_dict = {'>': operator.gt, '<': operator.lt, '>=': operator.ge,
                       '<=': operator.le, '==': operator.eq}
     if opr is None:
         return operators_dict
-    return operators_dict[opr], opr
+    else:
+        opr, value = opr.split('|')
+        value = int(value)
 
-
-def validate_ports(params, section):
-    if params != '':  # params can't be empty
-        if params != 'off':  # it could be 'off', meaning that the port is not active
-            if section == 'INPUTS':
-                params = params.split('|')
-                if len(params) == 3 and type(params) is list:
-                    port, cond, value = params  # the params are: analogical port, operator (condition) and float value
-                    try:
-                        if port.isnumeric() and any(cond == opr for opr in
-                                                    ('>=', '<=', '>', '<', '==')) and type(float(value)) is float:
-                            if int(port) <= 7:
-                                return True  # maximum analogical ports of Arduino Nano
-                    except ValueError:
-                        pass
-            else:
-                if params.isnumeric():  # digital section doesn't need conditional activation
-                    if int(params) <= 13:
-                        return True  # maximum digital ports of Arduino Nano
-        else:
-            return None
-    return False
-
-
-def check_duplicates(ports):
-    seen = []
-    for value in ports['INPUTS'].values():
-        if value is not False:
-            if value[0] in seen:
-                raise IOError('Configuration file arduino.ini has duplicated analogical values!')
-            seen.append(value[0])
-
-    seen = []
-    for value in ports['OUTPUTS'].values():
-        if value is not False:
-            if value in seen:
-                raise IOError('Configuration file arduino.ini has duplicated digital values!')
-            seen.append(value)
+        return operators_dict[opr], opr, value
 
 
 def default_ini(ini_file, ports, corrupted=True):
-    # cria um arquivo arduino.ini de acordo com a placa padrão
     file = 'settings/arduino.ini'
     if corrupted:
         os.remove(file)
 
     ini_file.read(file)
-    inputs, outputs = ports['INPUTS'], ports['OUTPUTS']
-
-    ini_file['INPUTS'] = {option: default for option, default in zip(inputs['opt'], inputs['def'])}
-    ini_file['OUTPUTS'] = {option: default for option, default in zip(outputs['opt'], outputs['def'])}
+    ini_file['INPUTS'] = ports['INPUTS']
+    ini_file['OUTPUTS'] = ports['OUTPUTS']
 
     with open(file, 'w+') as config_file:
         ini_file.write(config_file)
