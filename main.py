@@ -721,14 +721,14 @@ class Simulation(QtWidgets.QWidget):
 
         if not reading:
             sensor_name.setText(f"{sensor_name.text()} nulo!")
+            sensor_name.setStyleSheet("border: 2px solid yellow;")
 
         else:
             while self.keep_reading:
                 if trigger_func():
-                    print('trigger triggered!')
-                    sensor_name.setEnabled(True)
+                    sensor_name.setStyleSheet("border: 2px solid red;")
                 else:
-                    sensor_name.setEnabled(False)
+                    sensor_name.setEnabled("border: 2px solid green;")
 
     def resize_accordingly(self):
         sensors = len(self.input_widgets)
