@@ -461,7 +461,7 @@ class ArduinoWindow(QtWidgets.QWidget):
             self.sens3_checkBox.setEnabled(True)
 
     def construct_inputs(self):
-        self.sens1_lineEdit.setText('SENSOR 1')
+        self.sens1_lineEdit.setText('sensor_1')
         self.sens1_lineEdit.setAlignment(Qt.AlignCenter)
         self.sens1_lineEdit.setReadOnly(True)
 
@@ -469,7 +469,7 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.sens1_doubleSpinBox.setMaximum(1.0)
         self.sens1_doubleSpinBox.setSingleStep(0.025)
 
-        self.sens2_lineEdit.setText('SENSOR 2')
+        self.sens2_lineEdit.setText('sensor_2')
         self.sens2_lineEdit.setAlignment(Qt.AlignCenter)
         self.sens2_lineEdit.setReadOnly(True)
 
@@ -477,7 +477,7 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.sens2_doubleSpinBox.setMaximum(1.0)
         self.sens2_doubleSpinBox.setSingleStep(0.025)
 
-        self.sens3_lineEdit.setText('SENSOR 3')
+        self.sens3_lineEdit.setText('sensor_3')
         self.sens3_lineEdit.setAlignment(Qt.AlignCenter)
         self.sens3_lineEdit.setReadOnly(True)
 
@@ -689,10 +689,20 @@ class Simulation(QtWidgets.QWidget):
             size_policy.setVerticalPolicy(QtWidgets.QSizePolicy.Expanding)
             lineEdit_name.setSizePolicy(size_policy)
             lineEdit_name.setReadOnly(True)
+
+            lineEdit_value = QtWidgets.QLineEdit(self)
+            font.setPointSize(11)
+            lineEdit_value.setFont(font)
+            lineEdit_value.setAlignment(Qt.AlignCenter)
+            size_policy.setVerticalPolicy(QtWidgets.QSizePolicy.Fixed)
+            lineEdit_value.setSizePolicy(size_policy)
+            lineEdit_value.setReadOnly(True)
+
             self.input_widgets[sensor] = Thread(target=self._reader,
-                                                args=(lineEdit_name, self.triggers[sensor]))
+                                                args=(lineEdit_name, inputs[sensor][0],lineEdit_value, self.triggers[sensor]))
 
             self.central_layout.addWidget(lineEdit_name, 0, c, 1, 1)
+            self.central_layout.addWidget(lineEdit_value, 1, c, 1, 1)
             c += 1
 
         self.finish_pushButton = QtWidgets.QPushButton(self)
@@ -708,9 +718,11 @@ class Simulation(QtWidgets.QWidget):
         for thread in self.input_widgets.values():
             thread.start()
 
-    def _reader(self, sensor_name, trigger_func):
+    def _reader(self, sensor_name, reader, sensor_value, trigger_func):
+        #TODO: Try to create a C function for better reading performance.
+        current_sensor = sensor_name.text()
         reading = False
-        for _ in range(5):
+        for _ in range(6):
             try:
                 trigger_func()
             except TypeError:
@@ -720,15 +732,24 @@ class Simulation(QtWidgets.QWidget):
                 break
 
         if not reading:
-            sensor_name.setText(f"{sensor_name.text()} nulo!")
-            sensor_name.setStyleSheet("border: 2px solid yellow;")
+            sensor_value.setText("retornou nulo!")
 
         else:
+            loadings = ('-----', '----', '---', '--', '-')
+            i, loadings_amount = 0, len(loadings)-1
+
             while self.keep_reading:
+                print()
+                sensor_name.setText(f'{loadings[i]} {current_sensor} {loadings[i]}')
+                sensor_value.setText(f'{reader():.4f}')
+
                 if trigger_func():
-                    sensor_name.setStyleSheet("border: 2px solid red;")
-                else:
-                    sensor_name.setEnabled("border: 2px solid green;")
+                    sensor_name.setText(f'O {current_sensor} O')
+                    time.sleep(2)
+
+                i = 0 if i == loadings_amount else 1+i
+
+                time.sleep(0.03)
 
     def resize_accordingly(self):
         sensors = len(self.input_widgets)
