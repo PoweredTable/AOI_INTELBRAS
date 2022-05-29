@@ -6,6 +6,21 @@ import os
 import operator
 
 
+def defaults(section=None, requesting_default_port=False):
+    default_ports = {'INPUTS': {'sensor_1': 'a:0:i', 'sensor_2': 'a:1:i', 'sensor_3': 'a:2:i'},
+                     'OUTPUTS': {'inverter': 3, 'lights': 6, 'buzzer': 2,
+                                 'valve_1': 8, 'valve_2': 7, 'digital_1': 'a:4:i',
+                                 'digital_2': 'a:5:i', 'emergency': 5}}
+    if requesting_default_port is not False:
+        return default_ports[section][requesting_default_port]
+
+    default_params = {'INPUTS': {'sensor_1': '==|1', 'sensor_2': 'off', 'sensor_3': 'off'},
+                      'OUTPUTS': {'inverter': 'on', 'lights': 'on', 'buzzer': 'on',
+                                  'valve_1': 'on', 'valve_2': 'off', 'digital_1': 'off',
+                                  'digital_2': 'off', 'emergency': 'off'}}
+    return default_params, default_ports
+
+
 class ArduinoIni:
     @staticmethod
     def port_connection():
@@ -28,15 +43,8 @@ class ArduinoIni:
     @staticmethod
     def parameters():
         ports = {'INPUTS': {}, 'OUTPUTS': {}}
-        default_params = {'INPUTS': {'sensor_1': '==|1', 'sensor_2': 'off', 'sensor_3': 'off'},
-                          'OUTPUTS': {'inverter': 'on', 'lights': 'on', 'buzzer': 'on',
-                                      'valve_1': 'on', 'valve_2': 'off', 'digital_1': 'off',
-                                      'digital_2': 'off', 'emergency': 'off'}}
 
-        default_ports = {'INPUTS': {'sensor_1': 'a:0:i', 'sensor_2': 'a:1:i', 'sensor_3': 'a:2:i'},
-                         'OUTPUTS': {'inverter': 3, 'lights': 6, 'buzzer': 2,
-                                     'valve_1': 8, 'valve_2': 7, 'digital_1': 'a:4:i',
-                                     'digital_2': 'a:5:i', 'emergency': 5}}
+        default_params, default_ports = defaults()
 
         ini_file = ConfigParser()
         if os.path.isfile('settings/arduino.ini') is False:  # First run
@@ -50,12 +58,12 @@ class ArduinoIni:
                 warnings.warn('Missing arduino sections, recreating settings/arduino.ini...')
                 ini_file = default_ini(ini_file, default_params)
 
-        if any(section not in default_params.keys() for section in ini_file.sections()):
+        if any(section not in ini_file.sections() for section in default_params.keys()):
             warnings.warn('Missing arduino sections, recreating settings/arduino.ini...')
             ini_file = default_ini(ini_file, default_params)
 
         for section in default_params.keys():
-            if any(option not in default_params[section].keys() for option in ini_file.options(section)):
+            if any(option not in ini_file.options(section) for option in default_params[section].keys()):
                 warnings.warn('Missing arduino options, recreating settings/arduino.ini...')
                 ini_file = default_ini(ini_file, default_params)
 
