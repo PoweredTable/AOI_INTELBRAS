@@ -1,8 +1,8 @@
 import json
 import os
 import time
-import warnings
-
+from connections import clean_up_pins
+import console_log
 from ini_files import ArduinoIni, get_opr, defaults
 from trigger import generate_trigger_function
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -16,7 +16,8 @@ from core import inspection
 from multiprocessing import Process, SimpleQueue
 from threading import Thread
 
-#TODO: MOVE THIS FUNCTION TO THE ini_files.py MODULE.
+
+# TODO: MOVE THIS FUNCTION TO THE ini_files.py MODULE.
 def get_ini_configs():
     config = ConfigParser()
     file = 'settings/configs.ini'
@@ -68,12 +69,11 @@ def get_ini_configs():
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
-
         self.core_process, self.queue_reader = None, None
         self.program_started = False
         self.console_queue = SimpleQueue()
 
-        self.arduino_window = None
+
 
         self.calha_nome = get_ini_configs()
         self.setWindowIcon(QIcon('icon_simnext.png'))
@@ -111,6 +111,8 @@ class MainWindow(QMainWindow):
         size_policy.setHorizontalStretch(1)
 
         self.cadastro_pushButton = QtWidgets.QPushButton(self.central_widget)
+        #TODO: REMOVE USER'S TEMPORARY NAME TAG ID AUTOMATICALLY.
+        #TODO: CHECK FUNCTION IF THE NAME TAG READER IS CONNECTED.
         self.cadastro_pushButton.setText('CRACHÁ')
         self.cadastro_pushButton.setSizePolicy(size_policy)
         self.cadastro_pushButton.setFont(font)
@@ -162,14 +164,14 @@ class MainWindow(QMainWindow):
         self.central_layout.addLayout(self.gridLayout, 0, 0, 1, 1)
         self.setCentralWidget(self.central_widget)
 
-        self.console_textBrowser.insertHtml(f'<pre style="text-align: center;"><span style="font-family: Arial, '
-                                         f'Helvetica, sans-serif; font-size: 22px;">Inspe&ccedil;&atilde;o '
-                                         f'&oacute;ptica autom&aacute;tica: {self.calha_nome} - Interface de '
-                                         f'controle</span></pre>')
+        self.insert_title()
+
         self.console_textBrowser.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
 
+        #MainWindow children
+        self.arduino_window = ArduinoWindow(self)
+
         self.connect_functions()
-        self.settings_verification()
         self.showFullScreen()
 
     def connect_functions(self):
@@ -178,42 +180,42 @@ class MainWindow(QMainWindow):
         self.arduino_pushButton.clicked.connect(self.show_arduino)
 
     def run_inspection(self):
-        if self.program_started is False:
-            self.program_started = True
+        if self.arduino_window.status:
+            if self.program_started is False:
+                self.program_started = True
 
-            # returns a boolean if the button is pressed or not
-            # if true it means I won't inspect any board at all
-            #only_saving: bool = self.onlySave_pushButton.isChecked()
+                # returns a boolean if the button is pressed or not
+                # if true it means I won't inspect any board at all
+                # only_saving: bool = self.onlySave_pushButton.isChecked()
 
-            self.start_pushButton.setStyleSheet("background-color: rgb(255, 134, 32);\n"
-                                                "color: rgb(255, 255, 255);")
-            self.start_pushButton.setText('PARAR')
+                self.start_pushButton.setStyleSheet("background-color: rgb(255, 134, 32);\n"
+                                                    "color: rgb(255, 255, 255);")
+                self.start_pushButton.setText('PARAR')
 
-            # separate process to prevent GUI from freezing
-            self.core_process = Process(target=inspection, args=(self.console_queue, False))
-            self.core_process.daemon = True
-            self.core_process.start()
+                # separate process to prevent GUI from freezing
+                self.core_process = Process(target=inspection, args=(self.console_queue, False))
+                self.core_process.daemon = True
+                self.core_process.start()
 
-            self.queue_reader = Thread(target=self.console_reader)
-            self.queue_reader.start()
+                self.queue_reader = Thread(target=self.console_reader)
+                self.queue_reader.start()
 
-            self.toggle_buttons(False, [self.scrolling_pushButton, self.start_pushButton, self.cleanLog_pushButton])
+                self.toggle_buttons(False, [self.scrolling_pushButton, self.start_pushButton, self.cleanLog_pushButton])
 
-        else:
-            self.program_started = False
-            self.queue_reader.join()
+            else:
+                self.program_started = False
+                self.queue_reader.join()
 
-            self.core_process.terminate()
-            self.core_process.join()
-            self.start_pushButton.setStyleSheet("background-color: rgb(64, 134, 32);\n"
-                                                "color: rgb(255, 255, 255);")
-            self.start_pushButton.setText('INICIAR')
-            self.toggle_buttons(True)
+                self.core_process.terminate()
+                self.core_process.join()
+                self.start_pushButton.setStyleSheet("background-color: rgb(64, 134, 32);\n"
+                                                    "color: rgb(255, 255, 255);")
+                self.start_pushButton.setText('INICIAR')
+                self.toggle_buttons(True)
 
     def console_reader(self):
         while self.program_started:
             if self.console_queue.empty() is False:
-
                 self.console_textBrowser.append(self.console_queue.get().format(self.calha_nome))
                 self.console_scrolling()
 
@@ -248,9 +250,20 @@ class MainWindow(QMainWindow):
 
         if return_value == QMessageBox.Ok:
             self.console_textBrowser.clear()
+            self.insert_title()
 
-    def settings_verification(self):
-        self.arduino_window = ArduinoWindow(self.console_textBrowser, self.console_scrolling)
+    def insert_title(self):
+        self.console_textBrowser.insertHtml(f'<pre style="text-align: center;"><span style="font-family: Arial, '
+                                            f'Helvetica, sans-serif; font-size: 22px;">Inspe&ccedil;&atilde;o '
+                                            f'&oacute;ptica autom&aacute;tica: {self.calha_nome} - Interface de '
+                                            f'controle</span></pre>')
+
+    def highlight_button(self, clear):
+        if clear:
+            self.start_pushButton.setStyleSheet("background-color: rgb(64, 134, 32);\n"
+                                                "color: rgb(255, 255, 255);")
+        else:
+            self.start_pushButton.setStyleSheet("background-color: rgb(138, 124, 123)")
 
     def show_arduino(self):
         self.arduino_window.show()
@@ -267,16 +280,20 @@ class MsgBox(QMessageBox):
 
 
 class ArduinoWindow(QtWidgets.QWidget):
-    def __init__(self, console: QtWidgets.QTextEdit, scrolling):
+    def __init__(self, parent: MainWindow):
         super(ArduinoWindow, self).__init__()
-        self.console, self.scrolling = console, scrolling
+        self.status = True
 
-        self.ini_inputs, self.ini_outputs = ArduinoIni.parameters(self.console)
-        self.scrolling()
+        self.mw = parent
+
+        self.ini_inputs, self.ini_outputs = ArduinoIni.parameters(self.mw.console_textBrowser)
+        self.mw.console_scrolling()
 
         self.com, self.board = None, None
-        self.sensors = {}
-        self.simulation_window = None
+        self.sensors, self.digital_ports = {}, {}
+
+        self.analog_input_reading_window = None
+        self.digital_input_reading_window = None
 
         size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
 
@@ -327,7 +344,17 @@ class ArduinoWindow(QtWidgets.QWidget):
 
         self.simulate_pushButton = QtWidgets.QPushButton(self.inp_tab)
         self.simulate_pushButton.setText('Simular ativação')
-        self.inp_tab_layout.addWidget(self.simulate_pushButton, 0, 0, 1, 2)
+        self.inp_tab_layout.addWidget(self.simulate_pushButton, 0, 0, 1, 1)
+
+        self.digitalInputs_pushButton = QtWidgets.QPushButton(self.inp_tab)
+        self.digitalInputs_pushButton.setText('Entradas digitais')
+        self.inp_tab_layout.addWidget(self.digitalInputs_pushButton, 0, 1, 1, 1)
+
+        if self._no_digital_inputs_active():
+            self.console.insertHtml('<br><p><span style="font-family: Arial, Helvetica, sans-serif; background-color: '
+                                    'rgb(84, 172, 210);">&gt; &gt; &gt; information: Nenhuma entrada digital '
+                                    'est&aacute; ativa.</span></p>')
+            self.digitalInputs_pushButton.setEnabled(False)
 
         self.inp_tab_frame = QtWidgets.QFrame()
         self.inp_tab_frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
@@ -379,8 +406,14 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.out_tab = QtWidgets.QWidget()
         self.out_tab_layout = QtWidgets.QGridLayout(self.out_tab)
 
+        row = 0
+        for active_digital, port in self.ini_outputs.items():
+            lineEdit = QtWidgets.QLineEdit(self.out_tab)
+            pushButton = QtWidgets.QPushButton(self.out_tab)
 
-
+            self.out_tab_layout.addWidget(lineEdit, row, 0, 1, 1)
+            self.out_tab_layout.addWidget(pushButton, row, 1, 1, 1)
+            row += 1
 
         '''
         outputs = ('Controle esteira', 'Pino pneumático', 'Controle luzes', 'Alarme esteira', 'Alarme máquina')
@@ -434,7 +467,7 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.central_layout.addLayout(self.main_layout)
 
         self.connect_functions()
-        self.connection_attempt(True)
+        self.connection_attempt()
 
     def connect_functions(self):
         self.connect_pushButton.clicked.connect(self.connection_attempt)
@@ -443,6 +476,23 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.sens1_checkBox.clicked.connect(lambda state: self.get_state('sensor_1'))
         self.sens2_checkBox.clicked.connect(lambda state: self.get_state('sensor_2'))
         self.sens3_checkBox.clicked.connect(lambda state: self.get_state('sensor_3'))
+
+        self.digitalInputs_pushButton.clicked.connect(self.reading_test)
+
+    def _no_digital_inputs_active(self, just_checking=True):
+        digital_inputs, none_active = {}, True
+
+        digital = self.ini_inputs.get('digital_1')
+        if digital is not None:
+            digital_inputs['digital_1'] = digital
+            none_active = False
+
+        digital = self.ini_inputs.get('digital_2')
+        if digital is not None:
+            digital_inputs['digital_2'] = digital
+            none_active = False
+
+        return none_active if just_checking else digital_inputs
 
     def get_state(self, key):
         if self.sensors[key] is False:
@@ -507,20 +557,21 @@ class ArduinoWindow(QtWidgets.QWidget):
                 self.sens1_comboBox.setCurrentText(params[1][1])
                 self.sens1_doubleSpinBox.setValue(params[1][2])
                 self.sensors['sensor_1'] = True
+                non_actives.remove(port)
 
             elif port == 'sensor_2':
                 self.sens2_checkBox.setChecked(True)
                 self.sens2_comboBox.setCurrentText(params[1][1])
                 self.sens2_doubleSpinBox.setValue(params[1][2])
                 self.sensors['sensor_2'] = True
+                non_actives.remove(port)
 
-            else:
+            elif port == 'sensor_3':
                 self.sens3_checkBox.setChecked(True)
                 self.sens3_comboBox.setCurrentText(params[1][1])
                 self.sens3_doubleSpinBox.setValue(params[1][2])
                 self.sensors['sensor_3'] = True
-
-            non_actives.remove(port)
+                non_actives.remove(port)
 
         for non_active in non_actives:
             self.toggle_widgets_state(non_active)
@@ -543,35 +594,51 @@ class ArduinoWindow(QtWidgets.QWidget):
 
         self.sensors[key] = enabled
 
-    def connection_attempt(self, first_run=False):
-        self.com = ArduinoIni.port_connection(self.console)
-        self.scrolling()
+    def connection_attempt(self):
+        self.com = ArduinoIni.port_connection(self.mw.console_textBrowser)
+        self.mw.console_scrolling()
+
         self.com_lineEdit.setText(self.com)
         if 'COM' not in self.com:  # check if COM is now connected
-            if not first_run:
-                pass
-            return
-
-        if self.board is None:
-            self.board = ArduinoNano(self.com)
-            util.Iterator(self.board).start()
-            time.sleep(0.2)
-
-            self.connect_pushButton.setText('Desconectar')
-            self.inp_out_tabWidget.setEnabled(True)
-            self.confirm_button.setEnabled(True)
+            self.status = False
+            self.mw.highlight_button(self.status)
 
         else:
-            self.board.exit()
-            self.board = None
-            self.com_lineEdit.setText('Não conectado')
-            self.connect_pushButton.setText('Conectar')
-            self.inp_out_tabWidget.setEnabled(False)
-            self.confirm_button.setEnabled(False)
+            if self.status is False:
+                self.status = True
+                self.mw.highlight_button(self.status)
+
+            if self.board is None:
+                self.board = ArduinoNano(self.com)
+                util.Iterator(self.board).start()
+                time.sleep(0.2)
+
+                self.connect_pushButton.setText('Desconectar')
+                self.inp_out_tabWidget.setEnabled(True)
+                self.confirm_button.setEnabled(True)
+
+            else:
+                self.board.exit()
+                self.board = None
+                self.com_lineEdit.setText('Não conectado')
+                self.connect_pushButton.setText('Conectar')
+                self.inp_out_tabWidget.setEnabled(False)
+                self.confirm_button.setEnabled(False)
+
+    def toggle_lights(self, toggle):
+        pass
 
     def activation_test(self):
-        self.simulation_window = Simulation(self.board, self.generate_input_configs())
-        self.simulation_window.show()
+        self.analog_input_reading_window = AnalogReadingSimulation(self.board)
+        self.analog_input_reading_window.initialize(self.generate_input_configs())
+        self.analog_input_reading_window.show()
+
+    def reading_test(self):
+        self.digital_input_reading_window = DigitalReadingSimulation(self.board)
+        self.digital_input_reading_window.initialize()
+        self.digital_input_reading_window.show()
+
+
 
     # def active_valve(self):
     #     key = [key for key in self.ini_outputs if key.startswith('valve')]
@@ -600,13 +667,13 @@ class ArduinoWindow(QtWidgets.QWidget):
         return input_configs
 
 
-class Simulation(QtWidgets.QWidget):
-    def __init__(self, board, inputs):
-        super(Simulation, self).__init__()
+class AnalogReadingSimulation(QtWidgets.QWidget):
+    def __init__(self, board):
+        super(AnalogReadingSimulation, self).__init__()
         self.board = board
-        self.input_widgets = {}
 
-        self.triggers = {sensor: generate_trigger_function(inputs[sensor], True) for sensor in inputs}
+        self._input_widgets = {}
+        self._triggers = {}
 
         self.setWindowTitle('Simulação')
         self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
@@ -614,10 +681,20 @@ class Simulation(QtWidgets.QWidget):
 
         self.central_layout = QtWidgets.QGridLayout(self)
 
+        self.finish_pushButton = QtWidgets.QPushButton(self)
+        self.finish_pushButton.clicked.connect(self.close)
+        self.finish_pushButton.setText('Finalizar simulação')
+
+        self.keep_reading = True
+
+    def initialize(self, inputs):
+        self._triggers = {sensor: generate_trigger_function(inputs[sensor], True) for sensor in inputs}
+
         size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         font = QtGui.QFont()
+
         c = 0
-        for i, sensor in enumerate(self.triggers):
+        for i, sensor in enumerate(self._triggers):
             lineEdit_name = QtWidgets.QLineEdit(self)
             font.setPointSize(9)
             lineEdit_name.setText(sensor)
@@ -635,29 +712,25 @@ class Simulation(QtWidgets.QWidget):
             lineEdit_value.setSizePolicy(size_policy)
             lineEdit_value.setReadOnly(True)
 
-            self.input_widgets[sensor] = Thread(target=self._reader,
-                                                args=(lineEdit_name, inputs[sensor][0],lineEdit_value,
-                                                      self.triggers[sensor]))
+            self._input_widgets[sensor] = Thread(target=self._reader,
+                                                 args=(lineEdit_name, inputs[sensor][0], lineEdit_value,
+                                                       self._triggers[sensor]))
 
             self.central_layout.addWidget(lineEdit_name, 0, c, 1, 1)
             self.central_layout.addWidget(lineEdit_value, 1, c, 1, 1)
             c += 1
 
-        self.finish_pushButton = QtWidgets.QPushButton(self)
-        self.finish_pushButton.clicked.connect(self.close)
-        self.finish_pushButton.setText('Finalizar simulação')
+        self.central_layout.addWidget(self.finish_pushButton, 2, 0, 1, c)
+
         font.setPointSize(10)
         self.finish_pushButton.setFont(font)
-        self.central_layout.addWidget(self.finish_pushButton, 2, 0, 1, c)
-        self.keep_reading = True
+        self._resize_accordingly()
 
-        self.resize_accordingly()
-
-        for thread in self.input_widgets.values():
+        for thread in self._input_widgets.values():
             thread.start()
 
     def _reader(self, sensor_name, reader, sensor_value, trigger_func):
-        #TODO: Try to create a C function for better reading performance.
+        # TODO: Try to create a C function for better reading performance.
         current_sensor = sensor_name.text()
         reading = False
         for _ in range(6):
@@ -674,10 +747,9 @@ class Simulation(QtWidgets.QWidget):
 
         else:
             loadings = ('-----', '----', '---', '--', '-')
-            i, loadings_amount = 0, len(loadings)-1
+            i, loadings_amount = 0, len(loadings) - 1
 
             while self.keep_reading:
-                print()
                 sensor_name.setText(f'{loadings[i]} {current_sensor} {loadings[i]}')
                 sensor_value.setText(f'{reader():.4f}')
 
@@ -685,12 +757,11 @@ class Simulation(QtWidgets.QWidget):
                     sensor_name.setText(f'O {current_sensor} O')
                     time.sleep(2)
 
-                i = 0 if i == loadings_amount else 1+i
-
+                i = 0 if i == loadings_amount else 1 + i
                 time.sleep(0.03)
 
-    def resize_accordingly(self):
-        sensors = len(self.input_widgets)
+    def _resize_accordingly(self):
+        sensors = len(self._input_widgets)
         if sensors == 1:
             self.resize(200, 238)
         elif sensors == 2:
@@ -703,70 +774,91 @@ class Simulation(QtWidgets.QWidget):
             self.exit()
 
     def exit(self):
-        self.board.taken['analog'] = {0: False, 1: False, 2: False, 3: False, 4: False, 5: False, 6: False, 7: False}
+        self.board.taken['analog'] = clean_up_pins()
         self.keep_reading = False
 
-        for thread in self.input_widgets.values():
-            print('joining!')
+        self._input_widgets = {}
+        self._triggers = {}
+
+        for thread in self._input_widgets.values():
             thread.join()
-            print(thread.is_alive())
         self.close()
 
 
-class InputReader(QtWidgets.QWidget):
-    signal = QtCore.pyqtSignal(str)
+class DigitalReadingSimulation(QtWidgets.QWidget):
+    def __init__(self, board):
+        super(DigitalReadingSimulation, self).__init__()
+        self.board = board
 
-    def __init__(self, nano, port):
-        super(InputReader, self).__init__()
-        self.nano, self.taken_port = nano, int(port.split(':')[1])
-
-        self.setWindowModality(QtCore.Qt.WindowModality.WindowModal)
+        self.setWindowTitle('Simulação')
+        self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
         self.setWindowIcon(QIcon('icon_simnext.png'))
-        self.setWindowTitle(f'Leitura de {port}')
-        self.setFixedSize(271, 147)
 
-        self.main_widget_layout = QtWidgets.QGridLayout(self)
-        self.gridLayout = QtWidgets.QGridLayout()
+        self.central_layout = QtWidgets.QGridLayout(self)
 
-        font = QtGui.QFont()
-        font.setPointSize(14)
+        self.finish_pushButton = QtWidgets.QPushButton(self)
+        self.finish_pushButton.clicked.connect(self.close)
+        self.finish_pushButton.setText('Finalizar simulação')
 
-        self.pushButton = QtWidgets.QPushButton(self)
-        self.pushButton.setText('OK')
-        self.pushButton.clicked.connect(self.exit)
-        self.pushButton.setFont(font)
-        self.gridLayout.addWidget(self.pushButton, 1, 0, 1, 1)
+    def initialize(self):
+        pass
 
-        self.label = QtWidgets.QLabel(self)
-        font.setPointSize(28)
-        self.label.setFont(font)
-        self.label.setAlignment(Qt.AlignCenter)
-        self.gridLayout.addWidget(self.label, 0, 0, 1, 1)
 
-        self.main_widget_layout.addLayout(self.gridLayout, 0, 0, 1, 1)
 
-        self.keep_reading = True
-        self.pin = nano.get_pin(port)
-        self.running = Thread(target=self.run)
-        self.running.start()
-
-    def run(self):
-        while self.keep_reading:
-            pin_value = self.pin.read()
-            text = f'{pin_value:.4f}' if pin_value is not None else pin_value
-            self.label.setText(text)
-            time.sleep(0.05)
-
-    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
-        if self.keep_reading:
-            self.exit()
-
-    def exit(self):
-        self.nano.taken['analog'][self.taken_port] = False
-        self.signal.emit(f'a:{self.taken_port}:i')
-        self.keep_reading = False
-        self.running.join()
-        self.close()
+# class InputReader(QtWidgets.QWidget):
+#     signal = QtCore.pyqtSignal(str)
+#
+#     def __init__(self, nano, port):
+#         super(InputReader, self).__init__()
+#         self.nano, self.taken_port = nano, int(port.split(':')[1])
+#
+#         self.setWindowModality(QtCore.Qt.WindowModality.WindowModal)
+#         self.setWindowIcon(QIcon('icon_simnext.png'))
+#         self.setWindowTitle(f'Leitura de {port}')
+#         self.setFixedSize(271, 147)
+#
+#         self.main_widget_layout = QtWidgets.QGridLayout(self)
+#         self.gridLayout = QtWidgets.QGridLayout()
+#
+#         font = QtGui.QFont()
+#         font.setPointSize(14)
+#
+#         self.pushButton = QtWidgets.QPushButton(self)
+#         self.pushButton.setText('OK')
+#         self.pushButton.clicked.connect(self.exit)
+#         self.pushButton.setFont(font)
+#         self.gridLayout.addWidget(self.pushButton, 1, 0, 1, 1)
+#
+#         self.label = QtWidgets.QLabel(self)
+#         font.setPointSize(28)
+#         self.label.setFont(font)
+#         self.label.setAlignment(Qt.AlignCenter)
+#         self.gridLayout.addWidget(self.label, 0, 0, 1, 1)
+#
+#         self.main_widget_layout.addLayout(self.gridLayout, 0, 0, 1, 1)
+#
+#         self.keep_reading = True
+#         self.pin = nano.get_pin(port)
+#         self.running = Thread(target=self.run)
+#         self.running.start()
+#
+#     def run(self):
+#         while self.keep_reading:
+#             pin_value = self.pin.read()
+#             text = f'{pin_value:.4f}' if pin_value is not None else pin_value
+#             self.label.setText(text)
+#             time.sleep(0.05)
+#
+#     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+#         if self.keep_reading:
+#             self.exit()
+#
+#     def exit(self):
+#         self.nano.taken['analog'][self.taken_port] = False
+#         self.signal.emit(f'a:{self.taken_port}:i')
+#         self.keep_reading = False
+#         self.running.join()
+#         self.close()
 
 
 if __name__ == "__main__":

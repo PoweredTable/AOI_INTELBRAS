@@ -1,4 +1,5 @@
 import configparser
+import console_log
 from configparser import ConfigParser
 from serial.tools.list_ports import comports
 import warnings
@@ -34,23 +35,23 @@ class ArduinoIni:
 
         ini_file = ConfigParser()
         if os.path.isfile('settings/arduino.ini') is False:  # First run
-            ini_file = default_ini(ini_file, default_params, False)
-            _creating_file_warn(console)
+            ini_file = default_arduino_ini(ini_file, default_params, False)
+            _creating_arduino_file_warn(console)
         else:
             try:
                 ini_file.read('settings/arduino.ini')
             except configparser.MissingSectionHeaderError:
-                _creating_file_warn(console)
-                ini_file = default_ini(ini_file, default_params)
+                _creating_arduino_file_warn(console)
+                ini_file = default_arduino_ini(ini_file, default_params)
 
         if any(section not in ini_file.sections() for section in default_params.keys()):
-            _creating_file_warn(console)
-            ini_file = default_ini(ini_file, default_params)
+            _creating_arduino_file_warn(console)
+            ini_file = default_arduino_ini(ini_file, default_params)
 
         for section in default_params.keys():
             if any(option not in ini_file.options(section) for option in default_params[section].keys()):
-                _creating_file_warn(console)
-                ini_file = default_ini(ini_file, default_params)
+                _creating_arduino_file_warn(console)
+                ini_file = default_arduino_ini(ini_file, default_params)
 
             ports[section] = {option: get_params(default_ports[section][option], ini_file.get(section, option))
                               for option in ini_file.options(section) if ini_file.get(section, option) != 'off'}
@@ -77,7 +78,7 @@ def get_opr(opr=None):
         return operators_dict[opr], opr, value
 
 
-def default_ini(ini_file, ports, corrupted=True):
+def default_arduino_ini(ini_file, ports, corrupted=True):
     file = 'settings/arduino.ini'
     if corrupted:
         os.remove(file)
@@ -92,29 +93,23 @@ def default_ini(ini_file, ports, corrupted=True):
 
 
 def defaults(section=None, requesting_default_port=False):
-    default_ports = {'INPUTS': {'sensor_1': 'a:0:i', 'sensor_2': 'a:1:i', 'sensor_3': 'a:2:i'},
+    default_ports = {'INPUTS': {'sensor_1': 'a:0:i', 'sensor_2': 'a:1:i', 'sensor_3': 'a:2:i',
+                                'digital_1': 'a:4:i', 'digital_2': 'a:5:i'},
                      'OUTPUTS': {'inverter': 3, 'lights': 6, 'buzzer': 2,
-                                 'valve_1': 8, 'valve_2': 7, 'digital_1': 'a:4:i',
-                                 'digital_2': 'a:5:i', 'emergency': 5}}
+                                 'valve_1': 8, 'valve_2': 7, 'emergency': 5}}
     if requesting_default_port is not False:
         return default_ports[section][requesting_default_port]
 
-    default_params = {'INPUTS': {'sensor_1': '==|1', 'sensor_2': 'off', 'sensor_3': 'off'},
+    default_params = {'INPUTS': {'sensor_1': '==|1', 'sensor_2': 'off', 'sensor_3': 'off',
+                                 'digital_1': 'off', 'digital_2': 'off'},
                       'OUTPUTS': {'inverter': 'on', 'lights': 'on', 'buzzer': 'on',
-                                  'valve_1': 'on', 'valve_2': 'off', 'digital_1': 'off',
-                                  'digital_2': 'off', 'emergency': 'off'}}
+                                  'valve_1': 'on', 'valve_2': 'off', 'emergency': 'off'}}
     return default_params, default_ports
 
 
-def _creating_file_warn(console):
-    console.insertHtml(
-        '<br><pre style="text-align: left;"><span style="font-family: Arial, Helvetica, sans-serif; font-size: 19px; '
-        'background-color: rgb(250, 197, 28);">>>> warning:  Arquivo de configura&ccedil;&otilde;es padr&atilde;o do '
-        'Arduino foi criado, recomenda-se ajuste.</span></pre>')
+def _creating_arduino_file_warn(console):
+    console.insertHtml(console_log.creating_arduino_file_warn)
 
 
 def _arduino_not_found_error(console):
-    console.insertHtml('<br><p><span style="font-family: Arial, Helvetica, sans-serif; font-size: 19px; '
-                       'background-color: rgb(235, 107, 86);">&gt;&gt;&gt;critical:  Arduino n&atilde;o encontrado, '
-                       'instale o driver <a href="https://drive.google.com/drive/folders/1fCUTciTNCfYBJtet1WClLt9V'
-                       '-o6wJ-wu?usp=sharing">CH340</a> e verifique a conex&atilde;o com o Arduino.</span></p>')
+    console.insertHtml(console_log.arduino_not_found_error)
