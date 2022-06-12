@@ -1,5 +1,5 @@
 import configparser
-import console_log
+from console_log import arduino_not_found_error, creating_arduino_file_warn
 from configparser import ConfigParser
 from serial.tools.list_ports import comports
 import warnings
@@ -22,7 +22,7 @@ class ArduinoIni:
             if simulating:
                 return 'COM3'
 
-            _arduino_not_found_error(console)
+            console.insertHtml(arduino_not_found_error)
 
             com_port.append('Não encontrado')
         return com_port[0]
@@ -36,21 +36,21 @@ class ArduinoIni:
         ini_file = ConfigParser()
         if os.path.isfile('settings/arduino.ini') is False:  # First run
             ini_file = default_arduino_ini(ini_file, default_params, False)
-            _creating_arduino_file_warn(console)
+            console.insertHtml(creating_arduino_file_warn)
         else:
             try:
                 ini_file.read('settings/arduino.ini')
             except configparser.MissingSectionHeaderError:
-                _creating_arduino_file_warn(console)
+                console.insertHtml(creating_arduino_file_warn)
                 ini_file = default_arduino_ini(ini_file, default_params)
 
         if any(section not in ini_file.sections() for section in default_params.keys()):
-            _creating_arduino_file_warn(console)
+            console.insertHtml(creating_arduino_file_warn)
             ini_file = default_arduino_ini(ini_file, default_params)
 
         for section in default_params.keys():
             if any(option not in ini_file.options(section) for option in default_params[section].keys()):
-                _creating_arduino_file_warn(console)
+                console.insertHtml(creating_arduino_file_warn)
                 ini_file = default_arduino_ini(ini_file, default_params)
 
             ports[section] = {option: get_params(default_ports[section][option], ini_file.get(section, option))
@@ -92,12 +92,12 @@ def default_arduino_ini(ini_file, ports, corrupted=True):
     return ini_file
 
 
-def defaults(section=None, requesting_default_port=False):
+def defaults(section=None, requesting_default_port=None):
     default_ports = {'INPUTS': {'sensor_1': 'a:0:i', 'sensor_2': 'a:1:i', 'sensor_3': 'a:2:i',
                                 'digital_1': 'a:4:i', 'digital_2': 'a:5:i'},
                      'OUTPUTS': {'inverter': 3, 'lights': 6, 'buzzer': 2,
                                  'valve_1': 8, 'valve_2': 7, 'emergency': 5}}
-    if requesting_default_port is not False:
+    if requesting_default_port is not None:
         return default_ports[section][requesting_default_port]
 
     default_params = {'INPUTS': {'sensor_1': '==|1', 'sensor_2': 'off', 'sensor_3': 'off',
@@ -105,11 +105,3 @@ def defaults(section=None, requesting_default_port=False):
                       'OUTPUTS': {'inverter': 'on', 'lights': 'on', 'buzzer': 'on',
                                   'valve_1': 'on', 'valve_2': 'off', 'emergency': 'off'}}
     return default_params, default_ports
-
-
-def _creating_arduino_file_warn(console):
-    console.insertHtml(console_log.creating_arduino_file_warn)
-
-
-def _arduino_not_found_error(console):
-    console.insertHtml(console_log.arduino_not_found_error)

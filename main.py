@@ -1,20 +1,25 @@
 import json
 import os
 import time
-from connections import clean_up_pins
-import console_log
-from ini_files import ArduinoIni, get_opr, defaults
-from trigger import generate_trigger_function
-from PyQt5 import QtCore, QtGui, QtWidgets
+
 from configparser import ConfigParser
-from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import Qt
 from pyfirmata import ArduinoNano, util
 
-from PyQt5.QtWidgets import QMainWindow, QApplication, QMessageBox
-from core import inspection
 from multiprocessing import Process, SimpleQueue
 from threading import Thread
+
+from console_log import manually_starting_inspection, manually_stopping_inspection, \
+    main_window_title, no_digital_inputs_active
+
+from connections import clean_up_pins
+from ini_files import ArduinoIni, get_opr, defaults
+from trigger import generate_trigger_function
+from core import inspection
+
+from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QMainWindow, QApplication, QMessageBox
 
 
 # TODO: MOVE THIS FUNCTION TO THE ini_files.py MODULE.
@@ -73,8 +78,6 @@ class MainWindow(QMainWindow):
         self.program_started = False
         self.console_queue = SimpleQueue()
 
-
-
         self.calha_nome = get_ini_configs()
         self.setWindowIcon(QIcon('icon_simnext.png'))
         self.setWindowTitle(f'AOI {self.calha_nome}')
@@ -97,11 +100,6 @@ class MainWindow(QMainWindow):
         self.cameras_pushButton.setText('CÂMERAS')
         self.cameras_pushButton.setSizePolicy(size_policy)
         self.cameras_pushButton.setFont(font)
-
-        self.webcam_pushButton = QtWidgets.QPushButton(self.central_widget)
-        self.webcam_pushButton.setText('WEBCAM')
-        self.webcam_pushButton.setSizePolicy(size_policy)
-        self.webcam_pushButton.setFont(font)
 
         self.placas_pushButton = QtWidgets.QPushButton(self.central_widget)
         self.placas_pushButton.setText('PLACAS')
@@ -134,7 +132,6 @@ class MainWindow(QMainWindow):
 
         self.verify_pushButton = QtWidgets.QPushButton(self.central_widget)
         self.verify_pushButton.setText('VERIFICAR')
-        self.verify_pushButton.setSizePolicy(size_policy)
 
         size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         size_policy.setHorizontalStretch(5)
@@ -150,14 +147,13 @@ class MainWindow(QMainWindow):
 
         self.gridLayout.addWidget(self.arduino_pushButton, 4, 1, 1, 1)
         self.gridLayout.addWidget(self.cameras_pushButton, 5, 1, 1, 1)
-        self.gridLayout.addWidget(self.webcam_pushButton, 6, 1, 1, 1)
-        self.gridLayout.addWidget(self.placas_pushButton, 7, 1, 1, 1)
-        self.gridLayout.addWidget(self.cadastro_pushButton, 8, 1, 1, 1)
+        self.gridLayout.addWidget(self.placas_pushButton, 6, 1, 1, 1)
+        self.gridLayout.addWidget(self.cadastro_pushButton, 7, 1, 1, 1)
+        self.gridLayout.addWidget(self.verify_pushButton, 8, 1, 1, 1)
         self.gridLayout.addWidget(self.cleanLog_pushButton, 9, 1, 1, 1)
         self.gridLayout.addWidget(self.scrolling_pushButton, 10, 1, 1, 1)
 
-        self.gridLayout.addWidget(self.start_pushButton, 4, 2, 5, 1)
-        self.gridLayout.addWidget(self.verify_pushButton, 9, 2, 2, 1)
+        self.gridLayout.addWidget(self.start_pushButton, 4, 2, 7, 1)
 
         self.gridLayout.addWidget(self.console_textBrowser, 4, 0, 7, 1)
 
@@ -165,14 +161,19 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.central_widget)
 
         self.insert_title()
-
         self.console_textBrowser.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
 
         #MainWindow children
         self.arduino_window = ArduinoWindow(self)
 
         self.connect_functions()
-        self.showFullScreen()
+
+    def keyPressEvent(self, a0: QtGui.QKeyEvent) -> None:
+        if a0.key() == 16777274:
+            if self.isFullScreen():
+                self.showNormal()
+            else:
+                self.showFullScreen()
 
     def connect_functions(self):
         self.start_pushButton.clicked.connect(self.run_inspection)
@@ -183,17 +184,12 @@ class MainWindow(QMainWindow):
         if self.arduino_window.status:
             if self.program_started is False:
                 self.program_started = True
-
-                # returns a boolean if the button is pressed or not
-                # if true it means I won't inspect any board at all
-                # only_saving: bool = self.onlySave_pushButton.isChecked()
-
+                self.console_textBrowser.insertHtml(manually_starting_inspection)
                 self.start_pushButton.setStyleSheet("background-color: rgb(255, 134, 32);\n"
                                                     "color: rgb(255, 255, 255);")
                 self.start_pushButton.setText('PARAR')
 
-                # separate process to prevent GUI from freezing
-                self.core_process = Process(target=inspection, args=(self.console_queue, False))
+                self.core_process = Process(target=inspection, args=(self.console_queue, None))
                 self.core_process.daemon = True
                 self.core_process.start()
 
@@ -208,10 +204,13 @@ class MainWindow(QMainWindow):
 
                 self.core_process.terminate()
                 self.core_process.join()
+
                 self.start_pushButton.setStyleSheet("background-color: rgb(64, 134, 32);\n"
                                                     "color: rgb(255, 255, 255);")
                 self.start_pushButton.setText('INICIAR')
                 self.toggle_buttons(True)
+
+                self.console_textBrowser.insertHtml(manually_stopping_inspection)
 
     def console_reader(self):
         while self.program_started:
@@ -228,7 +227,6 @@ class MainWindow(QMainWindow):
     def toggle_buttons(self, action, let_enabled=None):
         self.arduino_pushButton.setEnabled(action)
         self.cameras_pushButton.setEnabled(action)
-        self.webcam_pushButton.setEnabled(action)
         self.placas_pushButton.setEnabled(action)
         self.cadastro_pushButton.setEnabled(action)
         self.cleanLog_pushButton.setEnabled(action)
@@ -243,6 +241,12 @@ class MainWindow(QMainWindow):
             else:
                 let_enabled.setEnabled(True)
 
+    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        if self.core_process is not None:
+            if self.core_process.is_alive():
+                self.core_process.terminate()
+                self.core_process.join()
+
     def clear_text_edit(self):
         msg_box = MsgBox(f'AOI {self.calha_nome}', 'Deseja apagar o console?',
                          (QMessageBox.Ok | QMessageBox.Cancel), QMessageBox.Information)
@@ -253,17 +257,7 @@ class MainWindow(QMainWindow):
             self.insert_title()
 
     def insert_title(self):
-        self.console_textBrowser.insertHtml(f'<pre style="text-align: center;"><span style="font-family: Arial, '
-                                            f'Helvetica, sans-serif; font-size: 22px;">Inspe&ccedil;&atilde;o '
-                                            f'&oacute;ptica autom&aacute;tica: {self.calha_nome} - Interface de '
-                                            f'controle</span></pre>')
-
-    def highlight_button(self, clear):
-        if clear:
-            self.start_pushButton.setStyleSheet("background-color: rgb(64, 134, 32);\n"
-                                                "color: rgb(255, 255, 255);")
-        else:
-            self.start_pushButton.setStyleSheet("background-color: rgb(138, 124, 123)")
+        self.console_textBrowser.insertHtml(main_window_title.format(self.calha_nome))
 
     def show_arduino(self):
         self.arduino_window.show()
@@ -303,8 +297,8 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.setWindowTitle('Configurações')
         self.setFixedSize(415, 620)
 
-        self.central_layout = QtWidgets.QVBoxLayout(self)  # verticalLayout_2
-        self.main_layout = QtWidgets.QVBoxLayout()  # main_layout
+        self.central_layout = QtWidgets.QVBoxLayout(self)
+        self.main_layout = QtWidgets.QVBoxLayout()
 
         font = QtGui.QFont()
         font.setPointSize(11)
@@ -351,9 +345,7 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.inp_tab_layout.addWidget(self.digitalInputs_pushButton, 0, 1, 1, 1)
 
         if self._no_digital_inputs_active():
-            self.console.insertHtml('<br><p><span style="font-family: Arial, Helvetica, sans-serif; background-color: '
-                                    'rgb(84, 172, 210);">&gt; &gt; &gt; information: Nenhuma entrada digital '
-                                    'est&aacute; ativa.</span></p>')
+            self.mw.console_textBrowser.insertHtml(no_digital_inputs_active)
             self.digitalInputs_pushButton.setEnabled(False)
 
         self.inp_tab_frame = QtWidgets.QFrame()
@@ -404,55 +396,39 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.inp_out_tabWidget.addTab(self.inp_tab, 'Entradas')
 
         self.out_tab = QtWidgets.QWidget()
+
+        self.inverter_checkBox = QtWidgets.QCheckBox(self.out_tab)
+        self.inverter_lineEdit = QtWidgets.QLineEdit(self.out_tab)
+        self.inverter_lineEdit2 = QtWidgets.QLineEdit(self.out_tab)
+        self.inverter_pushButton = QtWidgets.QPushButton(self.out_tab)
+
+        self.lights_checkBox = QtWidgets.QCheckBox(self.out_tab)
+        self.lights_lineEdit = QtWidgets.QLineEdit(self.out_tab)
+        self.lights_lineEdit2 = QtWidgets.QLineEdit(self.out_tab)
+        self.lights_pushButton = QtWidgets.QPushButton(self.out_tab)
+
+        self.buzzer_checkBox = QtWidgets.QCheckBox(self.out_tab)
+        self.buzzer_lineEdit = QtWidgets.QLineEdit(self.out_tab)
+        self.buzzer_lineEdit2 = QtWidgets.QLineEdit(self.out_tab)
+        self.buzzer_pushButton = QtWidgets.QPushButton(self.out_tab)
+
+        self.valve1_checkBox = QtWidgets.QCheckBox(self.out_tab)
+        self.valve1_lineEdit = QtWidgets.QLineEdit(self.out_tab)
+        self.valve1_lineEdit2 = QtWidgets.QLineEdit(self.out_tab)
+        self.valve1_pushButton = QtWidgets.QPushButton(self.out_tab)
+
+        self.valve2_checkBox = QtWidgets.QCheckBox(self.out_tab)
+        self.valve2_lineEdit = QtWidgets.QLineEdit(self.out_tab)
+        self.valve2_lineEdit2 = QtWidgets.QLineEdit(self.out_tab)
+        self.valve2_pushButton = QtWidgets.QPushButton(self.out_tab)
+
+        self.emergency_checkBox = QtWidgets.QCheckBox(self.out_tab)
+        self.emergency_lineEdit = QtWidgets.QLineEdit(self.out_tab)
+        self.emergency_lineEdit2 = QtWidgets.QLineEdit(self.out_tab)
+        self.emergency_pushButton = QtWidgets.QPushButton(self.out_tab)
+
         self.out_tab_layout = QtWidgets.QGridLayout(self.out_tab)
 
-        row = 0
-        for active_digital, port in self.ini_outputs.items():
-            lineEdit = QtWidgets.QLineEdit(self.out_tab)
-            pushButton = QtWidgets.QPushButton(self.out_tab)
-
-            self.out_tab_layout.addWidget(lineEdit, row, 0, 1, 1)
-            self.out_tab_layout.addWidget(pushButton, row, 1, 1, 1)
-            row += 1
-
-        '''
-        outputs = ('Controle esteira', 'Pino pneumático', 'Controle luzes', 'Alarme esteira', 'Alarme máquina')
-        digitalis = [(f'digital {x}', x) for x in range(2, 13)]
-        r, c, rs, cs = 0, 0, 1, 1
-        for output in outputs:
-            label = QtWidgets.QLabel(self.out_tab)
-            label.setText(output + ':')
-            self.out_tab_layout.addWidget(label, r, c, rs, cs)
-            combo_box = QtWidgets.QComboBox(self.out_tab)
-
-            self.out_tab_layout.addWidget(combo_box, r, c + 1, rs, cs)
-
-            push_button = QtWidgets.QPushButton(self.out_tab)
-            push_button.clicked.connect(lambda click, index=r: self.digital_test(index))
-            if r > 2:
-                spin_box = QtWidgets.QSpinBox(self.out_tab)
-                spin_box.setMinimum(1)
-                spin_box.setMaximum(18)
-                self.out_tab_layout.addWidget(spin_box, r, c + 2, rs, cs)
-
-                self.out_tab_layout.addWidget(push_button, r, c + 3, rs, cs)
-
-                push_button.setText('tocar')
-
-                if r > 3:
-                    combo_box.addItem('desativado', False)
-                    combo_box.currentIndexChanged.connect(lambda change, p_button=push_button:
-                                                          self._alarm_switch(p_button))
-                    spin_box.setEnabled(False)
-                    push_button.setEnabled(False)
-            else:
-                self.out_tab_layout.addWidget(push_button, r, c + 2, rs, cs + 1)
-                push_button.setText('ativar')
-
-            for digital in digitalis:
-                combo_box.addItem(*digital)
-            r += 1
-        '''
         self.inp_out_tabWidget.addTab(self.out_tab, 'Saídas')
 
         self.confirm_button = QtWidgets.QPushButton(self.groupBox)
@@ -601,12 +577,12 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.com_lineEdit.setText(self.com)
         if 'COM' not in self.com:  # check if COM is now connected
             self.status = False
-            self.mw.highlight_button(self.status)
+            self.mw.start_pushButton.hide()
 
         else:
             if self.status is False:
                 self.status = True
-                self.mw.highlight_button(self.status)
+                self.mw.start_pushButton.show()
 
             if self.board is None:
                 self.board = ArduinoNano(self.com)
@@ -637,8 +613,6 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.digital_input_reading_window = DigitalReadingSimulation(self.board)
         self.digital_input_reading_window.initialize()
         self.digital_input_reading_window.show()
-
-
 
     # def active_valve(self):
     #     key = [key for key in self.ini_outputs if key.startswith('valve')]
@@ -802,63 +776,6 @@ class DigitalReadingSimulation(QtWidgets.QWidget):
 
     def initialize(self):
         pass
-
-
-
-# class InputReader(QtWidgets.QWidget):
-#     signal = QtCore.pyqtSignal(str)
-#
-#     def __init__(self, nano, port):
-#         super(InputReader, self).__init__()
-#         self.nano, self.taken_port = nano, int(port.split(':')[1])
-#
-#         self.setWindowModality(QtCore.Qt.WindowModality.WindowModal)
-#         self.setWindowIcon(QIcon('icon_simnext.png'))
-#         self.setWindowTitle(f'Leitura de {port}')
-#         self.setFixedSize(271, 147)
-#
-#         self.main_widget_layout = QtWidgets.QGridLayout(self)
-#         self.gridLayout = QtWidgets.QGridLayout()
-#
-#         font = QtGui.QFont()
-#         font.setPointSize(14)
-#
-#         self.pushButton = QtWidgets.QPushButton(self)
-#         self.pushButton.setText('OK')
-#         self.pushButton.clicked.connect(self.exit)
-#         self.pushButton.setFont(font)
-#         self.gridLayout.addWidget(self.pushButton, 1, 0, 1, 1)
-#
-#         self.label = QtWidgets.QLabel(self)
-#         font.setPointSize(28)
-#         self.label.setFont(font)
-#         self.label.setAlignment(Qt.AlignCenter)
-#         self.gridLayout.addWidget(self.label, 0, 0, 1, 1)
-#
-#         self.main_widget_layout.addLayout(self.gridLayout, 0, 0, 1, 1)
-#
-#         self.keep_reading = True
-#         self.pin = nano.get_pin(port)
-#         self.running = Thread(target=self.run)
-#         self.running.start()
-#
-#     def run(self):
-#         while self.keep_reading:
-#             pin_value = self.pin.read()
-#             text = f'{pin_value:.4f}' if pin_value is not None else pin_value
-#             self.label.setText(text)
-#             time.sleep(0.05)
-#
-#     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
-#         if self.keep_reading:
-#             self.exit()
-#
-#     def exit(self):
-#         self.nano.taken['analog'][self.taken_port] = False
-#         self.signal.emit(f'a:{self.taken_port}:i')
-#         self.keep_reading = False
-#         self.running.join()
-#         self.close()
 
 
 if __name__ == "__main__":
