@@ -8,11 +8,10 @@ from pyfirmata import ArduinoNano, util
 from multiprocessing import Process, SimpleQueue
 from threading import Thread
 
-from console_log import manually_starting_inspection, manually_stopping_inspection, \
-    main_window_title, no_digital_inputs_active
+import console_log as c_log
 
 from connections import clean_up_pins
-from ini_files import ArduinoIni, get_opr, defaults
+from ini_files import get_default_ports, get_opr, defaults, get_port_connection
 from trigger import generate_trigger_function
 from core import inspection
 
@@ -184,7 +183,7 @@ class MainWindow(QMainWindow):
         if self.arduino_window.status:
             if self.program_started is False:
                 self.program_started = True
-                self.console_textBrowser.insertHtml(manually_starting_inspection)
+                self.console_textBrowser.insertHtml(c_log.manually_starting_inspection)
                 self.start_pushButton.setStyleSheet("background-color: rgb(255, 134, 32);\n"
                                                     "color: rgb(255, 255, 255);")
                 self.start_pushButton.setText('PARAR')
@@ -210,7 +209,7 @@ class MainWindow(QMainWindow):
                 self.start_pushButton.setText('INICIAR')
                 self.toggle_buttons(True)
 
-                self.console_textBrowser.insertHtml(manually_stopping_inspection)
+                self.console_textBrowser.insertHtml(c_log.manually_stopping_inspection)
 
     def console_reader(self):
         while self.program_started:
@@ -257,7 +256,7 @@ class MainWindow(QMainWindow):
             self.insert_title()
 
     def insert_title(self):
-        self.console_textBrowser.insertHtml(main_window_title.format(self.calha_nome))
+        self.console_textBrowser.insertHtml(c_log.main_window_title.format(self.calha_nome))
 
     def show_arduino(self):
         self.arduino_window.show()
@@ -280,7 +279,7 @@ class ArduinoWindow(QtWidgets.QWidget):
 
         self.mw = parent
 
-        self.ini_inputs, self.ini_outputs = ArduinoIni.parameters(self.mw.console_textBrowser)
+        self.ini_inputs, self.ini_outputs = get_default_ports(self.mw.console_textBrowser)
         self.mw.console_scrolling()
 
         self.com, self.board = None, None
@@ -345,7 +344,7 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.inp_tab_layout.addWidget(self.digitalInputs_pushButton, 0, 1, 1, 1)
 
         if self._no_digital_inputs_active():
-            self.mw.console_textBrowser.insertHtml(no_digital_inputs_active)
+            self.mw.console_textBrowser.insertHtml(c_log.no_digital_inputs_active)
             self.digitalInputs_pushButton.setEnabled(False)
 
         self.inp_tab_frame = QtWidgets.QFrame()
@@ -571,7 +570,7 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.sensors[key] = enabled
 
     def connection_attempt(self):
-        self.com = ArduinoIni.port_connection(self.mw.console_textBrowser)
+        self.com = get_port_connection(self.mw.console_textBrowser)
         self.mw.console_scrolling()
 
         self.com_lineEdit.setText(self.com)
