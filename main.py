@@ -11,7 +11,7 @@ from threading import Thread
 import console_log as c_log
 
 from connections import clean_up_pins
-from ini_files import get_default_ports, get_opr, defaults, get_port_connection
+from ini_files import get_default_ports, get_opr, defaults, get_port_connection, get_ini_configs
 from trigger import generate_trigger_function
 from core import inspection
 
@@ -19,55 +19,6 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMainWindow, QApplication, QMessageBox
-
-
-# TODO: MOVE THIS FUNCTION TO THE ini_files.py MODULE.
-def get_ini_configs():
-    config = ConfigParser()
-    file = 'settings/configs.ini'
-    config.read(file)
-
-    if len(config.sections()) == 0:
-        config.add_section('GERAIS')
-        print('_-_-_ Configurações iniciais da AOI -_-_-_')
-
-        users = False if os.path.exists('settings/users.json') else None
-        while 1:
-            calha = input('\nDigite o nome da linha de produção: ').strip().upper()
-
-            if users is None:
-                admin = input('Digite seu nome de administrador: ').strip().upper()
-                admin_id = int(input('Passe seu crachá: '))
-                users = {'users': [{'name': admin, 'id': str(admin_id), 'editor': True, 'operator': True}]}
-
-            stop_secs = float(input('Digite o tempo de parada do pino: '))
-
-            done = input('Digite 1 para confirmar as configurações: ')
-
-            if done == '1':
-                if calha != '' and stop_secs <= 2.5:
-                    break
-                else:
-                    print('Configurações inválidas!')
-
-            print('Por favor, digite novamente as configurações!')
-
-        config.set('GERAIS', 'NOME', calha)
-        config.set('GERAIS', 'PARADA', str(stop_secs))
-
-        if os.path.exists('settings') is False:
-            os.mkdir('settings')
-
-        with open(file, 'w+') as config_file:
-            config.write(config_file)
-
-        with open('settings/users.json', 'w+') as user_file:
-            json.dump(users, user_file, indent=3)
-
-        print('Configuração concluída!\n')
-        return config['GERAIS']['NOME']
-
-    return config['GERAIS']['NOME']
 
 
 class MainWindow(QMainWindow):
@@ -165,6 +116,7 @@ class MainWindow(QMainWindow):
         #MainWindow children
         self.arduino_window = ArduinoWindow(self)
 
+        self.showMaximized()
         self.connect_functions()
 
     def keyPressEvent(self, a0: QtGui.QKeyEvent) -> None:
@@ -182,6 +134,7 @@ class MainWindow(QMainWindow):
     def run_inspection(self):
         if self.arduino_window.status:
             if self.program_started is False:
+                self.showFullScreen()
                 self.program_started = True
                 self.console_textBrowser.insertHtml(c_log.manually_starting_inspection)
                 self.start_pushButton.setStyleSheet("background-color: rgb(255, 134, 32);\n"
@@ -276,7 +229,7 @@ class ArduinoWindow(QtWidgets.QWidget):
     def __init__(self, parent: MainWindow):
         super(ArduinoWindow, self).__init__()
         self.status = True
-
+        # MainWindow -> self.mw is how the child window get access to the parent window
         self.mw = parent
 
         self.ini_inputs, self.ini_outputs = get_default_ports(self.mw.console_textBrowser)
@@ -779,7 +732,6 @@ class DigitalReadingSimulation(QtWidgets.QWidget):
 
 if __name__ == "__main__":
     import sys
-
     app = QApplication(sys.argv)
     root = MainWindow()
     root.show()

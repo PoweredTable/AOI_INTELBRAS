@@ -5,6 +5,55 @@ from serial.tools.list_ports import comports
 import warnings
 import os
 import operator
+import json
+
+
+def get_ini_configs():
+    config = ConfigParser()
+    file = 'settings/configs.ini'
+    config.read(file)
+
+    if len(config.sections()) == 0:
+        config.add_section('GERAIS')
+        print('_-_-_ Configurações iniciais da AOI -_-_-_')
+
+        users = False if os.path.exists('settings/users.json') else None
+        while 1:
+            calha = input('\nDigite o nome da linha de produção: ').strip().upper()
+
+            if users is None:
+                admin = input('Digite seu nome de administrador: ').strip().upper()
+                admin_id = int(input('Passe seu crachá: '))
+                users = {'users': [{'name': admin, 'id': str(admin_id), 'editor': True, 'operator': True}]}
+
+            stop_secs = float(input('Digite o tempo de parada do pino: '))
+
+            done = input('Digite 1 para confirmar as configurações: ')
+
+            if done == '1':
+                if calha != '' and stop_secs <= 2.5:
+                    break
+                else:
+                    print('Configurações inválidas!')
+
+            print('Por favor, digite novamente as configurações!')
+
+        config.set('GERAIS', 'NOME', calha)
+        config.set('GERAIS', 'PARADA', str(stop_secs))
+
+        if os.path.exists('settings') is False:
+            os.mkdir('settings')
+
+        with open(file, 'w+') as config_file:
+            config.write(config_file)
+
+        with open('settings/users.json', 'w+') as user_file:
+            json.dump(users, user_file, indent=3)
+
+        print('Configuração concluída!\n')
+        return config['GERAIS']['NOME']
+
+    return config['GERAIS']['NOME']
 
 
 def get_default_ports(console):
@@ -14,7 +63,7 @@ def get_default_ports(console):
 
     ini_file = ConfigParser()
     if os.path.isfile('settings/arduino.ini') is False:  # First run
-        ini_file = default_arduino_ini(ini_file, default_params)
+        ini_file = default_arduino_ini(ini_file, default_params, False)
         console.insertHtml(creating_arduino_file_warn)
     else:
         try:
@@ -46,7 +95,7 @@ def get_port_connection(console=None) -> str:
         from ini_files import get_port_connection
         port = get_port_connection()
     """
-    simulating = False
+    simulating = True
     com_port = [p.device for p in comports()
                 if any(ard in p.description for ard in ('Arduino', 'CH340'))]
 
@@ -61,7 +110,7 @@ def get_port_connection(console=None) -> str:
         if console is not None:
             console.insertHtml(arduino_not_found_error)
 
-        com_port.append('Não encontrado')
+        com_port.append('Não encontrada')
     return com_port[0]
 
 
