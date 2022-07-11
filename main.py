@@ -30,7 +30,7 @@ class MainWindow(QMainWindow):
 
         self.calha_nome = get_ini_configs()
         self.setWindowIcon(QIcon('icon_simnext.png'))
-        self.setWindowTitle(f'AOI {self.calha_nome}')
+        self.setWindowTitle(f'AOI INTELBRAS')
 
         self.central_widget = QtWidgets.QWidget()
         self.central_layout = QtWidgets.QGridLayout(self.central_widget)
@@ -59,8 +59,8 @@ class MainWindow(QMainWindow):
         size_policy.setHorizontalStretch(1)
 
         self.cadastro_pushButton = QtWidgets.QPushButton(self.central_widget)
-        #TODO: REMOVE USER'S TEMPORARY NAME TAG ID AUTOMATICALLY.
-        #TODO: CHECK FUNCTION IF THE NAME TAG READER IS CONNECTED.
+        # TODO: REMOVE USER'S TEMPORARY NAME TAG ID AUTOMATICALLY.
+        # TODO: CHECK FUNCTION IF THE NAME TAG READER IS CONNECTED.
         self.cadastro_pushButton.setText('CRACHÁ')
         self.cadastro_pushButton.setSizePolicy(size_policy)
         self.cadastro_pushButton.setFont(font)
@@ -113,7 +113,7 @@ class MainWindow(QMainWindow):
         self.insert_title()
         self.console_textBrowser.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
 
-        #MainWindow children
+        # MainWindow children
         self.arduino_window = ArduinoWindow(self)
 
         self.showMaximized()
@@ -337,8 +337,8 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.inp_tab_frame_layout.addWidget(self.sens3_comboBox, 2, 3, 1, 1)
         self.inp_tab_frame_layout.addWidget(self.sens3_doubleSpinBox, 2, 4, 1, 1)
 
-        self.inputs_frame_grid = QtWidgets.QGridLayout()
-        self.inp_tab_frame_layout.addLayout(self.inputs_frame_grid, 0, 0, 1, 1)
+        # self.inputs_frame_grid = QtWidgets.QGridLayout()
+        # self.inp_tab_frame_layout.addLayout(self.inputs_frame_grid, 0, 0, 1, 1)
         self.inp_tab_layout.addWidget(self.inp_tab_frame, 1, 0, 1, 2)
 
         self.construct_inputs()
@@ -348,38 +348,63 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.inp_out_tabWidget.addTab(self.inp_tab, 'Entradas')
 
         self.out_tab = QtWidgets.QWidget()
-
-        self.inverter_checkBox = QtWidgets.QCheckBox(self.out_tab)
-        self.inverter_lineEdit = QtWidgets.QLineEdit(self.out_tab)
-        self.inverter_lineEdit2 = QtWidgets.QLineEdit(self.out_tab)
-        self.inverter_pushButton = QtWidgets.QPushButton(self.out_tab)
-
-        self.lights_checkBox = QtWidgets.QCheckBox(self.out_tab)
-        self.lights_lineEdit = QtWidgets.QLineEdit(self.out_tab)
-        self.lights_lineEdit2 = QtWidgets.QLineEdit(self.out_tab)
-        self.lights_pushButton = QtWidgets.QPushButton(self.out_tab)
-
-        self.buzzer_checkBox = QtWidgets.QCheckBox(self.out_tab)
-        self.buzzer_lineEdit = QtWidgets.QLineEdit(self.out_tab)
-        self.buzzer_lineEdit2 = QtWidgets.QLineEdit(self.out_tab)
-        self.buzzer_pushButton = QtWidgets.QPushButton(self.out_tab)
-
-        self.valve1_checkBox = QtWidgets.QCheckBox(self.out_tab)
-        self.valve1_lineEdit = QtWidgets.QLineEdit(self.out_tab)
-        self.valve1_lineEdit2 = QtWidgets.QLineEdit(self.out_tab)
-        self.valve1_pushButton = QtWidgets.QPushButton(self.out_tab)
-
-        self.valve2_checkBox = QtWidgets.QCheckBox(self.out_tab)
-        self.valve2_lineEdit = QtWidgets.QLineEdit(self.out_tab)
-        self.valve2_lineEdit2 = QtWidgets.QLineEdit(self.out_tab)
-        self.valve2_pushButton = QtWidgets.QPushButton(self.out_tab)
-
-        self.emergency_checkBox = QtWidgets.QCheckBox(self.out_tab)
-        self.emergency_lineEdit = QtWidgets.QLineEdit(self.out_tab)
-        self.emergency_lineEdit2 = QtWidgets.QLineEdit(self.out_tab)
-        self.emergency_pushButton = QtWidgets.QPushButton(self.out_tab)
-
         self.out_tab_layout = QtWidgets.QGridLayout(self.out_tab)
+
+        self.out_tab_frame = QtWidgets.QFrame()
+        self.out_tab_frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        self.out_tab_frame_layout = QtWidgets.QGridLayout(self.out_tab_frame)
+
+        self.inverter_checkBox = QtWidgets.QCheckBox(self.out_tab_frame)
+        self.inverter_lineEdit = QtWidgets.QLineEdit(self.out_tab_frame)
+        self.inverter_pushButton = QtWidgets.QPushButton(self.out_tab_frame)
+
+        self.out_tab_frame_layout.addWidget(self.inverter_checkBox, 0, 1, 1, 1)
+        self.out_tab_frame_layout.addWidget(self.inverter_lineEdit, 0, 2, 1, 1)
+        self.out_tab_frame_layout.addWidget(self.inverter_pushButton, 0, 3, 1, 1)
+
+        self.lights_checkBox = QtWidgets.QCheckBox(self.out_tab_frame)
+        self.lights_lineEdit = QtWidgets.QLineEdit(self.out_tab_frame)
+        self.lights_pushButton = QtWidgets.QPushButton(self.out_tab_frame)
+
+        self.out_tab_frame_layout.addWidget(self.lights_checkBox, 1, 1, 1, 1)
+        self.out_tab_frame_layout.addWidget(self.lights_lineEdit, 1, 2, 1, 1)
+        self.out_tab_frame_layout.addWidget(self.lights_pushButton, 1, 3, 1, 1)
+
+        self.valve1_checkBox = QtWidgets.QCheckBox(self.out_tab_frame)
+        self.valve1_lineEdit = QtWidgets.QLineEdit(self.out_tab_frame)
+        self.valve1_pushButton = QtWidgets.QPushButton(self.out_tab_frame)
+
+        self.out_tab_frame_layout.addWidget(self.valve1_checkBox, 2, 1, 1, 1)
+        self.out_tab_frame_layout.addWidget(self.valve1_lineEdit, 2, 2, 1, 1)
+        self.out_tab_frame_layout.addWidget(self.valve1_pushButton, 2, 3, 1, 1)
+
+        self.valve2_checkBox = QtWidgets.QCheckBox(self.out_tab_frame)
+        self.valve2_lineEdit = QtWidgets.QLineEdit(self.out_tab_frame)
+        self.valve2_pushButton = QtWidgets.QPushButton(self.out_tab_frame)
+
+        self.out_tab_frame_layout.addWidget(self.valve2_checkBox, 3, 1, 1, 1)
+        self.out_tab_frame_layout.addWidget(self.valve2_lineEdit, 3, 2, 1, 1)
+        self.out_tab_frame_layout.addWidget(self.valve2_pushButton, 3, 3, 1, 1)
+
+        self.emergency_checkBox = QtWidgets.QCheckBox(self.out_tab_frame)
+        self.emergency_lineEdit = QtWidgets.QLineEdit(self.out_tab_frame)
+        self.emergency_pushButton = QtWidgets.QPushButton(self.out_tab_frame)
+
+        self.out_tab_frame_layout.addWidget(self.emergency_checkBox, 4, 1, 1, 1)
+        self.out_tab_frame_layout.addWidget(self.emergency_lineEdit, 4, 2, 1, 1)
+        self.out_tab_frame_layout.addWidget(self.emergency_pushButton, 4, 3, 1, 1)
+
+        self.buzzer_checkBox = QtWidgets.QCheckBox(self.out_tab_frame)
+        self.buzzer_lineEdit = QtWidgets.QLineEdit(self.out_tab_frame)
+        self.buzzer_pushButton = QtWidgets.QPushButton(self.out_tab_frame)
+
+        self.out_tab_frame_layout.addWidget(self.buzzer_checkBox, 5, 1, 1, 1)
+        self.out_tab_frame_layout.addWidget(self.buzzer_lineEdit, 5, 2, 1, 1)
+        self.out_tab_frame_layout.addWidget(self.buzzer_pushButton, 5, 3, 1, 1)
+
+        self.out_tab_layout.addWidget(self.out_tab_frame, 1, 0, 1, 2)
+
+        self.construct_outputs()
 
         self.inp_out_tabWidget.addTab(self.out_tab, 'Saídas')
 
@@ -522,6 +547,46 @@ class ArduinoWindow(QtWidgets.QWidget):
 
         self.sensors[key] = enabled
 
+    def construct_outputs(self):
+        self.inverter_lineEdit.setText('inverter')
+        self.inverter_lineEdit.setAlignment(Qt.AlignCenter)
+        self.inverter_lineEdit.setReadOnly(True)
+
+        self.inverter_pushButton.setText('OFF')
+
+        self.lights_lineEdit.setText('lights')
+        self.lights_lineEdit.setAlignment(Qt.AlignCenter)
+        self.lights_lineEdit.setReadOnly(True)
+
+        self.lights_pushButton.setText('ON')
+
+        self.valve1_lineEdit.setText('valve_1')
+        self.valve1_lineEdit.setAlignment(Qt.AlignCenter)
+        self.valve1_lineEdit.setReadOnly(True)
+
+        self.valve1_pushButton.setText('OFF')
+
+        self.valve2_lineEdit.setText('valve_2')
+        self.valve2_lineEdit.setAlignment(Qt.AlignCenter)
+        self.valve2_lineEdit.setReadOnly(True)
+
+        self.valve2_pushButton.setText('OFF')
+
+        self.emergency_lineEdit.setText('emergency')
+        self.emergency_lineEdit.setAlignment(Qt.AlignCenter)
+        self.emergency_lineEdit.setReadOnly(True)
+
+        self.emergency_pushButton.setText('OFF')
+
+        self.buzzer_lineEdit.setText('buzzer')
+        self.buzzer_lineEdit.setAlignment(Qt.AlignCenter)
+        self.buzzer_lineEdit.setReadOnly(True)
+
+        self.buzzer_pushButton.setText('OFF')
+
+    def set_outputs(self):
+        pass
+
     def connection_attempt(self):
         self.com = get_port_connection(self.mw.console_textBrowser)
         self.mw.console_scrolling()
@@ -572,8 +637,9 @@ class ArduinoWindow(QtWidgets.QWidget):
     #         warnings.warn(f'Multiple valves are active, utilizing {key[0]}.')
     #     return self.ini_outputs[key[0]]
 
-    def return_trigger_function(self):
-        return generate_trigger_function(self._generate_input_configs())[0]
+    def get_trigger_function(self):
+        return {sensor: generate_trigger_function(trigger)
+                for sensor, trigger in self.generate_input_configs().items()}
 
     def generate_input_configs(self):
         input_configs = {}
@@ -615,7 +681,6 @@ class AnalogReadingSimulation(QtWidgets.QWidget):
 
     def initialize(self, inputs):
         self._triggers = {sensor: generate_trigger_function(inputs[sensor], True) for sensor in inputs}
-
         size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         font = QtGui.QFont()
 
@@ -732,6 +797,7 @@ class DigitalReadingSimulation(QtWidgets.QWidget):
 
 if __name__ == "__main__":
     import sys
+
     app = QApplication(sys.argv)
     root = MainWindow()
     root.show()
