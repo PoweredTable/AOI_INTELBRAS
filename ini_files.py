@@ -1,6 +1,7 @@
 import configparser
 from console_log import arduino_not_found_error, creating_arduino_file_warn
 from configparser import ConfigParser
+import win32com.client
 from serial.tools.list_ports import comports
 import warnings
 import os
@@ -31,7 +32,7 @@ def get_ini_configs():
             done = input('Digite 1 para confirmar as configurações: ')
 
             if done == '1':
-                if calha != '' and stop_secs <= 2.5:
+                if calha != '':
                     break
                 else:
                     print('Configurações inválidas!')
@@ -44,6 +45,8 @@ def get_ini_configs():
         if os.path.exists('settings') is False:
             os.mkdir('settings')
 
+
+
         with open(file, 'w+') as config_file:
             config.write(config_file)
 
@@ -55,6 +58,9 @@ def get_ini_configs():
 
     return config['GERAIS']['NOME']
 
+
+def create_shortcut():
+    pass
 
 def get_default_ports(console):
     ports = {'INPUTS': {}, 'OUTPUTS': {}}

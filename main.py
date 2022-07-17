@@ -1,7 +1,6 @@
-import json
+﻿import json
 import os
 import time
-
 from configparser import ConfigParser
 from pyfirmata import ArduinoNano, util
 
@@ -552,7 +551,7 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.inverter_lineEdit.setAlignment(Qt.AlignCenter)
         self.inverter_lineEdit.setReadOnly(True)
 
-        self.inverter_pushButton.setText('OFF')
+        self.inverter_pushButton.setText('ON')
 
         self.lights_lineEdit.setText('lights')
         self.lights_lineEdit.setAlignment(Qt.AlignCenter)
