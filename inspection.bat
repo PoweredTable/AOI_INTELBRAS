@@ -8,8 +8,6 @@ FOR /F %%x IN ('tasklist /NH /FI "IMAGENAME eq %EXE%"') DO IF %%x == %EXE% goto 
 goto ProcessNotFound
 
 :ProcessFound
-
-echo %EXE% is running
 goto END
 :ProcessNotFound
 start pythonw main.py

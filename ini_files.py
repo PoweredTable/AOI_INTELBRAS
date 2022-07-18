@@ -45,8 +45,6 @@ def get_ini_configs():
         if os.path.exists('settings') is False:
             os.mkdir('settings')
 
-
-
         with open(file, 'w+') as config_file:
             config.write(config_file)
 
@@ -59,10 +57,7 @@ def get_ini_configs():
     return config['GERAIS']['NOME']
 
 
-def create_shortcut():
-    pass
-
-def get_default_ports(console):
+def get_ports_from_json(console):
     ports = {'INPUTS': {}, 'OUTPUTS': {}}
 
     default_params, default_ports = defaults()
@@ -153,8 +148,12 @@ def defaults(section=None, requesting_default_port=None):
                                 'digital_1': 'a:4:i', 'digital_2': 'a:5:i'},
                      'OUTPUTS': {'inverter': 3, 'lights': 6, 'buzzer': 2,
                                  'valve_1': 8, 'valve_2': 7, 'emergency': 5}}
+
     if requesting_default_port is not None:
         return default_ports[section][requesting_default_port]
+
+    if section is not None:
+        return default_ports[section]
 
     default_params = {'INPUTS': {'sensor_1': '==|1', 'sensor_2': 'off', 'sensor_3': 'off',
                                  'digital_1': 'off', 'digital_2': 'off'},

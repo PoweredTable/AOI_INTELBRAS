@@ -10,7 +10,7 @@ from threading import Thread
 import console_log as c_log
 
 from connections import clean_up_pins
-from ini_files import get_default_ports, get_opr, defaults, get_port_connection, get_ini_configs
+from ini_files import get_ports_from_json, get_opr, defaults, get_port_connection, get_ini_configs
 from trigger import generate_trigger_function
 from core import inspection
 
@@ -133,7 +133,6 @@ class MainWindow(QMainWindow):
     def run_inspection(self):
         if self.arduino_window.status:
             if self.program_started is False:
-                self.showFullScreen()
                 self.program_started = True
                 self.console_textBrowser.insertHtml(c_log.manually_starting_inspection)
                 self.start_pushButton.setStyleSheet("background-color: rgb(255, 134, 32);\n"
@@ -228,10 +227,11 @@ class ArduinoWindow(QtWidgets.QWidget):
     def __init__(self, parent: MainWindow):
         super(ArduinoWindow, self).__init__()
         self.status = True
+        self.interacted = False
         # MainWindow -> self.mw is how the child window get access to the parent window
         self.mw = parent
 
-        self.ini_inputs, self.ini_outputs = get_default_ports(self.mw.console_textBrowser)
+        self.ini_inputs, self.ini_outputs = get_ports_from_json(self.mw.console_textBrowser)
         self.mw.console_scrolling()
 
         self.com, self.board = None, None
@@ -336,13 +336,11 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.inp_tab_frame_layout.addWidget(self.sens3_comboBox, 2, 3, 1, 1)
         self.inp_tab_frame_layout.addWidget(self.sens3_doubleSpinBox, 2, 4, 1, 1)
 
-        # self.inputs_frame_grid = QtWidgets.QGridLayout()
-        # self.inp_tab_frame_layout.addLayout(self.inputs_frame_grid, 0, 0, 1, 1)
         self.inp_tab_layout.addWidget(self.inp_tab_frame, 1, 0, 1, 2)
 
         self.construct_inputs()
         self.set_inputs()
-        self.check_actives()
+        self.prevent_no_sensors()
 
         self.inp_out_tabWidget.addTab(self.inp_tab, 'Entradas')
 
@@ -404,15 +402,16 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.out_tab_layout.addWidget(self.out_tab_frame, 1, 0, 1, 2)
 
         self.construct_outputs()
+        self.set_outputs()
 
         self.inp_out_tabWidget.addTab(self.out_tab, 'Saídas')
 
-        self.confirm_button = QtWidgets.QPushButton(self.groupBox)
-        self.confirm_button.setEnabled(False)
-        self.confirm_button.setText('Validar configurações')
-        self.confirm_button.setFont(font)
+        self.confirm_pushButton = QtWidgets.QPushButton(self.groupBox)
+        self.confirm_pushButton.setEnabled(False)
+        self.confirm_pushButton.setText('Validar configurações')
+        self.confirm_pushButton.setFont(font)
 
-        self.groupBox_layout.addWidget(self.confirm_button, 2, 0, 1, 3)
+        self.groupBox_layout.addWidget(self.confirm_pushButton, 2, 0, 1, 3)
         self.groupBox_layout.addWidget(self.inp_out_tabWidget, 1, 0, 1, 3)
 
         self.main_layout.addWidget(self.groupBox)
@@ -425,9 +424,16 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.connect_pushButton.clicked.connect(self.connection_attempt)
         self.simulate_pushButton.clicked.connect(self.activation_test)
 
-        self.sens1_checkBox.clicked.connect(lambda state: self.get_state('sensor_1'))
-        self.sens2_checkBox.clicked.connect(lambda state: self.get_state('sensor_2'))
-        self.sens3_checkBox.clicked.connect(lambda state: self.get_state('sensor_3'))
+        self.sens1_checkBox.clicked.connect(lambda: self.toggle_state('sensor_1'))
+        self.sens2_checkBox.clicked.connect(lambda: self.toggle_state('sensor_2'))
+        self.sens3_checkBox.clicked.connect(lambda: self.toggle_state('sensor_3'))
+
+        self.inverter_checkBox.clicked.connect(lambda: self.toggle_state('inverter'))
+        self.buzzer_checkBox.clicked.connect(lambda: self.toggle_state('buzzer'))
+        self.lights_checkBox.clicked.connect(lambda: self.toggle_state('lights'))
+        self.valve1_checkBox.clicked.connect(lambda: self.toggle_state('valve_1'))
+        self.valve2_checkBox.clicked.connect(lambda: self.toggle_state('valve_2'))
+        self.emergency_checkBox.clicked.connect(lambda: self.toggle_state('emergency'))
 
         self.digitalInputs_pushButton.clicked.connect(self.reading_test)
 
@@ -446,17 +452,28 @@ class ArduinoWindow(QtWidgets.QWidget):
 
         return none_active if just_checking else digital_inputs
 
-    def get_state(self, key):
-        if self.sensors[key] is False:
-            self.toggle_widgets_state(key, True)
-            self.simulate_pushButton.setEnabled(True)
-            self.confirm_button.setEnabled(True)
+    def toggle_state(self, key):
+        self.interacted = True
+        # it toggles all the key widgets to on/off when called
+        if key.startswith('sensor'):
+            if self.sensors[key] is False:
+                # if value is False, it means the sensor's checkbox is not checked,
+                # thus it's widgets are disabled, here they'll be enabled
+                self.toggle_widgets_state(key, enabled=True)
+                self.simulate_pushButton.setEnabled(True)
+                self.confirm_pushButton.setEnabled(True)
+            else:
+                self.toggle_widgets_state(key, enabled=False)
+
+            self.prevent_no_sensors()
         else:
-            self.toggle_widgets_state(key)
+            if self.digital_ports[key] is False:
+                self.toggle_widgets_state(key, enabled=True)
+            else:
+                self.toggle_widgets_state(key, enabled=False)
 
-        self.check_actives()
-
-    def check_actives(self):
+    def prevent_no_sensors(self):
+        # if there's only one sensor left, it won't be allowed to be disabled also
         actives = [sensor for sensor, active in self.sensors.items() if active is True]
         if len(actives) == 1:
             active = actives[0]
@@ -503,88 +520,183 @@ class ArduinoWindow(QtWidgets.QWidget):
 
     def set_inputs(self):
         non_actives = ['sensor_1', 'sensor_2', 'sensor_3']
-        for port, params in self.ini_inputs.items():
-            if port == 'sensor_1':
-                self.sens1_checkBox.setChecked(True)
-                self.sens1_comboBox.setCurrentText(params[1][1])
-                self.sens1_doubleSpinBox.setValue(params[1][2])
-                self.sensors['sensor_1'] = True
-                non_actives.remove(port)
+        for key, params in self.ini_inputs.items():
+            if key in non_actives:
+                _, (_, opr, value) = params
+                if key == 'sensor_1':
+                    self.sens1_checkBox.setChecked(True)
+                    self.sens1_comboBox.setCurrentText(opr)
+                    self.sens1_doubleSpinBox.setValue(value)
 
-            elif port == 'sensor_2':
-                self.sens2_checkBox.setChecked(True)
-                self.sens2_comboBox.setCurrentText(params[1][1])
-                self.sens2_doubleSpinBox.setValue(params[1][2])
-                self.sensors['sensor_2'] = True
-                non_actives.remove(port)
+                elif key == 'sensor_2':
+                    self.sens2_checkBox.setChecked(True)
+                    self.sens2_comboBox.setCurrentText(opr)
+                    self.sens2_doubleSpinBox.setValue(value)
 
-            elif port == 'sensor_3':
-                self.sens3_checkBox.setChecked(True)
-                self.sens3_comboBox.setCurrentText(params[1][1])
-                self.sens3_doubleSpinBox.setValue(params[1][2])
-                self.sensors['sensor_3'] = True
-                non_actives.remove(port)
+                elif key == 'sensor_3':
+                    self.sens3_checkBox.setChecked(True)
+                    self.sens3_comboBox.setCurrentText(opr)
+                    self.sens3_doubleSpinBox.setValue(value)
+                self.sensors[key] = True
+                non_actives.remove(key)
 
         for non_active in non_actives:
-            self.toggle_widgets_state(non_active)
+            self.toggle_widgets_state(non_active, enabled=False)
 
-    def toggle_widgets_state(self, key, enabled=False):
+    def toggle_widgets_state(self, key, enabled):
         if key == 'sensor_1':
             self.sens1_lineEdit.setEnabled(enabled)
             self.sens1_comboBox.setEnabled(enabled)
             self.sens1_doubleSpinBox.setEnabled(enabled)
+            self.sensors[key] = enabled
 
         elif key == 'sensor_2':
             self.sens2_lineEdit.setEnabled(enabled)
             self.sens2_comboBox.setEnabled(enabled)
             self.sens2_doubleSpinBox.setEnabled(enabled)
+            self.sensors[key] = enabled
 
         elif key == 'sensor_3':
             self.sens3_lineEdit.setEnabled(enabled)
             self.sens3_comboBox.setEnabled(enabled)
             self.sens3_doubleSpinBox.setEnabled(enabled)
+            self.sensors[key] = enabled
 
-        self.sensors[key] = enabled
+        elif key == 'inverter':
+            self.inverter_lineEdit.setEnabled(enabled)
+            self.inverter_pushButton.setEnabled(enabled)
+            self.digital_ports[key] = enabled
+            if self.inverter_pushButton.isChecked():
+                self.inverter_pushButton.toggle()
+
+        elif key == 'lights':
+            self.lights_lineEdit.setEnabled(enabled)
+            self.lights_pushButton.setEnabled(enabled)
+            self.digital_ports[key] = enabled
+            if self.lights_pushButton.isChecked():
+                self.lights_pushButton.toggle()
+
+        elif key == 'valve_1':
+            self.valve1_lineEdit.setEnabled(enabled)
+            self.valve1_pushButton.setEnabled(enabled)
+            self.digital_ports[key] = enabled
+            if self.valve1_pushButton.isChecked():
+                self.valve1_pushButton.toggle()
+
+        elif key == 'valve_2':
+            self.valve2_lineEdit.setEnabled(enabled)
+            self.valve2_pushButton.setEnabled(enabled)
+            self.digital_ports[key] = enabled
+            if self.valve2_pushButton.isChecked():
+                self.valve2_pushButton.toggle()
+
+        elif key == 'emergency':
+            self.emergency_lineEdit.setEnabled(enabled)
+            self.emergency_pushButton.setEnabled(enabled)
+            self.digital_ports[key] = enabled
+            if self.emergency_pushButton.isChecked():
+                self.emergency_pushButton.toggle()
+
+        elif key == 'buzzer':
+            self.buzzer_lineEdit.setEnabled(enabled)
+            self.buzzer_pushButton.setEnabled(enabled)
+            self.digital_ports[key] = enabled
 
     def construct_outputs(self):
+        default_output_ports = defaults('OUTPUTS')
+
         self.inverter_lineEdit.setText('inverter')
         self.inverter_lineEdit.setAlignment(Qt.AlignCenter)
         self.inverter_lineEdit.setReadOnly(True)
 
-        self.inverter_pushButton.setText('ON')
-
+        self.inverter_pushButton.setText('LOW')
+        self.inverter_pushButton.setCheckable(True)
+        self.inverter_pushButton.toggled.connect(lambda: self.toggle_output(default_output_ports['inverter'],
+                                                                            self.inverter_pushButton))
         self.lights_lineEdit.setText('lights')
         self.lights_lineEdit.setAlignment(Qt.AlignCenter)
         self.lights_lineEdit.setReadOnly(True)
 
-        self.lights_pushButton.setText('ON')
-
+        self.lights_pushButton.setText('LOW')
+        self.lights_pushButton.setCheckable(True)
+        self.lights_pushButton.toggled.connect(lambda: self.toggle_output(default_output_ports['lights'],
+                                                                          self.lights_pushButton))
         self.valve1_lineEdit.setText('valve_1')
         self.valve1_lineEdit.setAlignment(Qt.AlignCenter)
         self.valve1_lineEdit.setReadOnly(True)
 
-        self.valve1_pushButton.setText('OFF')
-
+        self.valve1_pushButton.setText('LOW')
+        self.valve1_pushButton.setCheckable(True)
+        self.valve1_pushButton.toggled.connect(lambda: self.toggle_output(default_output_ports['valve_1'],
+                                                                          self.valve1_pushButton))
         self.valve2_lineEdit.setText('valve_2')
         self.valve2_lineEdit.setAlignment(Qt.AlignCenter)
         self.valve2_lineEdit.setReadOnly(True)
 
-        self.valve2_pushButton.setText('OFF')
-
+        self.valve2_pushButton.setText('LOW')
+        self.valve2_pushButton.setCheckable(True)
+        self.valve2_pushButton.toggled.connect(lambda: self.toggle_output(default_output_ports['valve_2'],
+                                                                          self.valve2_pushButton))
         self.emergency_lineEdit.setText('emergency')
         self.emergency_lineEdit.setAlignment(Qt.AlignCenter)
         self.emergency_lineEdit.setReadOnly(True)
 
-        self.emergency_pushButton.setText('OFF')
-
+        self.emergency_pushButton.setText('LOW')
+        self.emergency_pushButton.setCheckable(True)
+        self.emergency_pushButton.toggled.connect(lambda: self.toggle_output(default_output_ports['emergency'],
+                                                                             self.emergency_pushButton))
         self.buzzer_lineEdit.setText('buzzer')
         self.buzzer_lineEdit.setAlignment(Qt.AlignCenter)
         self.buzzer_lineEdit.setReadOnly(True)
 
-        self.buzzer_pushButton.setText('OFF')
+        self.buzzer_pushButton.setText('BEEP')
 
     def set_outputs(self):
-        pass
+        non_actives = list(defaults('OUTPUTS'))
+        for key, port in self.ini_outputs.items():
+            if key in non_actives:
+                if key == 'inverter':
+                    self.inverter_checkBox.setChecked(True)
+                elif key == 'lights':
+                    self.lights_checkBox.setChecked(True)
+                elif key == 'valve_1':
+                    self.valve1_checkBox.setChecked(True)
+                elif key == 'valve_2':
+                    self.valve2_checkBox.setChecked(True)
+                elif key == 'emergency':
+                    self.emergency_checkBox.setChecked(True)
+                elif key == 'buzzer':
+                    self.buzzer_checkBox.setChecked(True)
+
+                self.digital_ports[key] = True
+                non_actives.remove(key)
+
+        for non_active in non_actives:
+            self.toggle_widgets_state(non_active, enabled=False)
+
+    def toggle_if_active(self):
+        if self.inverter_pushButton.isChecked():
+            self.inverter_pushButton.toggle()
+
+        if self.lights_pushButton.isChecked():
+            self.lights_pushButton.toggle()
+
+        if self.valve1_pushButton.isChecked():
+            self.valve1_pushButton.toggle()
+
+        if self.valve2_pushButton.isChecked():
+            self.valve2_pushButton.toggle()
+
+        if self.emergency_pushButton.isChecked():
+            self.emergency_pushButton.toggle()
+
+    def toggle_output(self, port, pushButton):
+        if pushButton.isChecked():
+            self.board.digital[port].write(1)
+            pushButton.setText('HIGH')
+        else:
+            self.board.digital[port].write(0)
+            pushButton.setText('LOW')
 
     def connection_attempt(self):
         self.com = get_port_connection(self.mw.console_textBrowser)
@@ -602,23 +714,28 @@ class ArduinoWindow(QtWidgets.QWidget):
 
             if self.board is None:
                 self.board = ArduinoNano(self.com)
+
                 util.Iterator(self.board).start()
                 time.sleep(0.2)
 
+                self.mw.start_pushButton.setHidden(False)
                 self.connect_pushButton.setText('Desconectar')
+
+                self.inverter_pushButton.toggle()
+                self.lights_pushButton.toggle()
+
                 self.inp_out_tabWidget.setEnabled(True)
-                self.confirm_button.setEnabled(True)
+                self.confirm_pushButton.setEnabled(True)
 
             else:
+                self.mw.start_pushButton.hide()
+                self.toggle_if_active()
                 self.board.exit()
                 self.board = None
                 self.com_lineEdit.setText('Não conectado')
                 self.connect_pushButton.setText('Conectar')
                 self.inp_out_tabWidget.setEnabled(False)
-                self.confirm_button.setEnabled(False)
-
-    def toggle_lights(self, toggle):
-        pass
+                self.confirm_pushButton.setEnabled(False)
 
     def activation_test(self):
         self.analog_input_reading_window = AnalogReadingSimulation(self.board)
@@ -630,18 +747,13 @@ class ArduinoWindow(QtWidgets.QWidget):
         self.digital_input_reading_window.initialize()
         self.digital_input_reading_window.show()
 
-    # def active_valve(self):
-    #     key = [key for key in self.ini_outputs if key.startswith('valve')]
-    #     if len(key) == 2:
-    #         warnings.warn(f'Multiple valves are active, utilizing {key[0]}.')
-    #     return self.ini_outputs[key[0]]
-
     def get_trigger_function(self):
         return {sensor: generate_trigger_function(trigger)
                 for sensor, trigger in self.generate_input_configs().items()}
 
     def generate_input_configs(self):
         input_configs = {}
+        default_input_ports = defaults('INPUTS')
         for port in self.sensors:
             if self.sensors[port]:
                 if port == 'sensor_1':
@@ -654,8 +766,28 @@ class ArduinoWindow(QtWidgets.QWidget):
                     func, opr, value = self.sens3_comboBox.currentData(), self.sens3_comboBox.currentText(), \
                                        self.sens3_doubleSpinBox.value()
 
-                input_configs[port] = (self.board.get_pin(defaults('INPUTS', port)).read, func, opr, value)
+                input_configs[port] = (self.board.get_pin(default_input_ports[port]).read, func, opr, value)
         return input_configs
+
+    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        if self.interacted:
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Information)
+            msg_box.setWindowTitle('Configurações')
+            msg_box.setText('Deseja sair sem validar as configurações?')
+
+            msg_box.addButton('Salvar', QMessageBox.NoRole)
+            msg_box.addButton('Cancelar', QMessageBox.ApplyRole)
+            msg_box.addButton('Sair', QMessageBox.RejectRole)
+
+            reply = msg_box.exec_()
+
+            if reply == 0:
+                self.interacted = False
+                self.confirm_pushButton.click()
+            elif reply == 1:
+                a0.ignore()
+
 
 
 class AnalogReadingSimulation(QtWidgets.QWidget):
