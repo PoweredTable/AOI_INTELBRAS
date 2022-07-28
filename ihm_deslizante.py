@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import Frame, Text, OptionMenu, StringVar, Button
-
+from tkinter import ttk
 
 class Interface(tk.Tk):
     def __init__(self):
@@ -12,8 +12,8 @@ class Interface(tk.Tk):
         # INTERFACE --->
         self.wm_title('IHM DESLIZANTE')
 
-        self.console_Frame = Frame(self)
-        self.console_Frame.grid(row=0, column=0, sticky='nsew', pady=2)
+        self.console_Frame = Frame(self, background='red')
+        self.console_Frame.pack(expand=True, fill='both')
 
         self.console_Text = Text(self.console_Frame, font=('Times New Roman', 17))
 
@@ -21,19 +21,25 @@ class Interface(tk.Tk):
         self.console_Text.insert('1.0', 'Interface de controle de teste de motores\n\n')
         self.console_Text.tag_add('center', '1.0', '1.45')
         self.console_Text.configure(state='disabled')
-        self.console_Text.pack(expand=True, fill='both')
+        self.console_Text.grid(row=0, column=0, stick='nsew', columnspan=2)
 
         self.options_StringVar = StringVar()
         self.options_StringVar.set(self.selected_engine)
-
+        '''
         self.options_OptionMenu = OptionMenu(self, self.options_StringVar, *self.engines, command=self.select_engine)
-        self.options_OptionMenu.grid(row=1, column=0, sticky='nsw', ipady=20, columnspan=3)
+        self.options_OptionMenu.grid(row=1, column=0, sticky='nsew', ipady=20, columnspan=3)
+        '''
 
-        self.start_Button = Button(self, text='INICIAR')
-        self.start_Button.grid(row=1, column=1)
+        self.options_Combobox = ttk.Combobox(self.console_Frame, state='readonly' ,textvariable=self.options_StringVar, values=self.engines)
+        self.options_Combobox.grid(row=1, column=0, ipady=20, stick='nsew')
 
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self.options_Combobox.bind('<<ComboboxSelected>>', self.select_engine)
+
+        self.start_Button = Button(self.console_Frame, text='INICIAR')
+        self.start_Button.grid(row=1, column=1 ,stick='nsew', ipadx=180)
+
+        self.console_Frame.columnconfigure(0, weight=1)
+        self.console_Frame.rowconfigure(0, weight=1)
 
         self.bind('<F11>', self.toggle_fullscreen)
 
@@ -46,7 +52,8 @@ class Interface(tk.Tk):
     def select_engine(self, e: tk.Event):
         engine = self.options_StringVar.get()
         self.selected_engine = engine
-        self.console_insertion(f'{engine} selecionado para teste...\n\n')
+        self.console_insertion('{} selecionado para teste...\n\n'.format(engine))
+        self.console_Frame.focus()
 
     def console_insertion(self, action: str):
         self.console_Text.configure(state='normal')
