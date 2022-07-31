@@ -20,14 +20,14 @@ manually_starting_inspection = '<hr><p style="text-align: center;"><span style="
                                'style="color: rgb(65, 168, 95);">&nbsp;</span><span ' \
                                'style="color: rgb(124, 112, 107);">Controle manual: ' \
                                '</span>Inspe&ccedil;&atilde;o ' \
-                               'inicializando...</span></p><hr><p></p>'
+                               'inicializada</span></p><hr><p></p>'
 
 manually_stopping_inspection = '<hr><p style="text-align: center;"><span style="font-family: '\
                                                     'Arial, Helvetica, sans-serif; font-size: 20px;">🔧<span '\
                                                     'style="color: rgb(65, 168, 95);">&nbsp;</span><span '\
                                                     'style="color: rgb(124, 112, 107);">Controle '\
                                                     'manual:&nbsp;</span>Inspe&ccedil;&atilde;o '\
-                                                    'desligada!</span></p><hr><p><br></p>'
+                                                    'desligada</span></p><hr><p><br></p>'
 
 no_digital_inputs_active = '<p><span style="font-family: Arial, Helvetica, sans-serif; '\
                                                    'font-size: 19px;"><span style="color: rgb(44, 130, '\
